@@ -1,10 +1,18 @@
 # eth flower nft 🌼
 
-## caveats
+## quick deploy 🏃‍♀️
+
+-   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy --argument '(principal "<your_principal>")' staging --mode reinstall`
+
+## caveats 🕳
 
 -   The canister code is written in a way that the seed animation _ALWAYS_ has to be the first asset uploaded to the canister.
 -   The `deploy.zsh` adds another oracle to the NFT canister because the script in the source SVG won't be executed the way it's currently structured.
--   To use `vessels`s moc for when deploying, use `DFX_MOC_PATH="$(vessel bin)/moc" dfx deploy`
+
+## vessel 🚢
+
+-   Run `vessel verify --version 0.6.21` to verify everything still builds correctly after adding a new depdenceny
+-   To use `vessels`s moc version when deploying, use `DFX_MOC_PATH="$(vessel bin)/moc" dfx deploy`
 
 ## off-chain backup ⛓
 
