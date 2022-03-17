@@ -96,7 +96,6 @@ actor class Canister(init_minter: Principal) = this {
   type Asset = {
     name : Text;
     thumbnail : ?File;
-    highres: ?File;
     metadata: ?File;
     payload : File;
   };
@@ -635,7 +634,6 @@ actor class Canister(init_minter: Principal) = this {
               data = Array.append(t.data, [payload]);
             };
             payload = asset.payload;
-            highres = asset.highres;
             metadata = asset.metadata;
           };
         };
@@ -645,7 +643,6 @@ actor class Canister(init_minter: Principal) = this {
       asset := {
         name = asset.name;
         thumbnail = asset.thumbnail;
-        highres = asset.highres;
         payload = {
           ctype = asset.payload.ctype;
           data = Array.append(asset.payload.data, [payload]);
@@ -667,7 +664,6 @@ actor class Canister(init_minter: Principal) = this {
           name = asset.name;
           thumbnail = ?file;
           payload = asset.payload;
-          highres = asset.highres;
           metadata = asset.metadata;
         };
         tassets[i] := asset;
@@ -1081,19 +1077,6 @@ actor class Canister(init_minter: Principal) = this {
                       case (_){};
                     };
                   };
-                  case("highres") {
-                    switch(asset.highres) {
-                      case(?high) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", high.ctype)];
-                          body = high.data[0];
-                          streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
                   case(_){};
                 };
                 // end custom
@@ -1138,19 +1121,6 @@ actor class Canister(init_minter: Principal) = this {
                           headers = [("content-type", metadata.ctype)];
                           body = metadata.data[0];
                           streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
-                  case("highres") {
-                    switch(asset.highres) {
-                      case(?high) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", high.ctype)];
-                          body = high.data[0];
-                        streaming_strategy = null;
                         };
                       };
                       case (_){};
