@@ -340,7 +340,7 @@ actor class Canister(init_minter: Principal) = this {
                   ("price_currency", #Text("ICP")),
                   ("price", #U64(settlement.price)),
                   // there can only be one token in tokens due to the reserve function
-                  ("tokend_id", #Text(_indexToIdentifier(settlement.tokens[0]))),
+                  ("token_id", #Text(_indexToIdentifier(settlement.tokens[0]))),
                   ];
                 caller = msg.caller;
               };
@@ -488,7 +488,7 @@ actor class Canister(init_minter: Principal) = this {
                         ("price_decimals", #U64(8)),
                         ("price_currency", #Text("ICP")),
                         ("price", #U64(settlement.price)),
-                        ("tokend_id", #Text(tokenid))
+                        ("token_id", #Text(tokenid))
                       ];
                       caller = msg.caller;
               };
@@ -783,7 +783,7 @@ actor class Canister(init_minter: Principal) = this {
                             details = [
                               ("to", #Text receiver ),
                               ("from", #Text owner),
-                              ("tokend_id", #Text(request.token))
+                              ("token_id", #Text(request.token))
                             ];
                             caller = msg.caller;
                     };
@@ -815,7 +815,7 @@ actor class Canister(init_minter: Principal) = this {
                   details = [
                     ("to", #Text receiver ),
                     ("from", #Text owner),
-                    ("tokend_id", #Text(request.token))
+                    ("token_id", #Text(request.token))
                   ];
                   caller = msg.caller;
           };
