@@ -1,0 +1,26 @@
+{
+    "version": 1,
+    "dfx": "0.8.5",
+    "canisters": {
+        "staging": {
+            "type": "motoko",
+            "main": "ethflower.mo"
+        },
+        "production": {
+            "type": "motoko",
+            "main": "ethflower.mo"
+        }
+    },
+    "defaults": {
+        "build": {
+            "packtool": "vessel sources",
+            "args": ""
+        }
+    },
+    "networks": {
+        "local": {
+            "bind": "127.0.0.1:8000",
+            "type": "ephemeral"
+        }
+    }
+}
