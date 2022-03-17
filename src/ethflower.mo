@@ -23,11 +23,11 @@ import Root "mo:cap/Root";
 import Router "mo:cap/Router";
 import Types "mo:cap/Types";
 
-import AID "../motoko/util/AccountIdentifier";
-import ExtAllowance "../motoko/ext/Allowance";
-import ExtCommon "../motoko/ext/Common";
-import ExtCore "../motoko/ext/Core";
-import ExtNonFungible "../motoko/ext/NonFungible";
+import AID "./toniq-labs/util/AccountIdentifier";
+import ExtAllowance "./toniq-labs/ext/Allowance";
+import ExtCommon "./toniq-labs/ext/Common";
+import ExtCore "./toniq-labs/ext/Core";
+import ExtNonFungible "./toniq-labs/ext/NonFungible";
 
 actor class Canister(init_minter: Principal) = this {
   
