@@ -4,10 +4,21 @@
 
 -   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy --argument '(principal "<your_principal>")' staging --mode reinstall`
 
+## sophisticated deploy 📚
+
+-   use `make` to run the standard local deploy, use `make deploy-staging-ic` to deploy the staging canister to the mainnet
+-   The `deploy.zsh` adds another oracle to the NFT canister because the script in the source SVG won't be executed the way it's currently structured. Make sure you use the correct API endpoint there as well!
+    -   note: this script is not allowed to contain any `&` or `>` characters!
+    -   make sure you change the asset canister url and the currency fetched from the oracle
+-   make sure you create and `assets` folder and provide the `seed.mp4` file and the `metadata.json` file and specify their names in the script accordingly
+-   run the `deploy.zsh` and provide the correct arguments, by default it deploys the NFT staging canister locally and uses `assets/output.mp4` and `metadata.json` as file paths
+    -   `metadata.json` **MUST NOT** contain a mint number! (use `cat btcflower.json| sed '/mint/ d' > metadata.json` to remove the mint number)
+-   the weird looking `sed` when uploading the metadata is escaping `"` characters and the variable `$j` is needed for the correct index (`j=$i-1`)
+
 ## caveats 🕳
 
 -   The canister code is written in a way that the seed animation _ALWAYS_ has to be the first asset uploaded to the canister.
--   The `deploy.zsh` adds another oracle to the NFT canister because the script in the source SVG won't be executed the way it's currently structured.
+-   The seed animation video needs to be encoded in a way that it can be played on iOS devices, use `HandBrake` for that or `ffmpeg`
 
 ## vessel 🚢
 
@@ -24,17 +35,7 @@ To have the same token identifiers for the same tokens, it is important to keep 
 
 So when executing `mintNFT`, the `to` address is taken from `registry.json` and the `asset` is taken from `tokens.json`. It's important here that the uploading of the assets is on order (start with flower 1, end with flower 2009) and that the `assets` index 0 is used by something other than an NFT asset (before it was the seed animation)! It's also crucial to remove `shuffleAssets` functionality from the canister!
 
-## deploy 🚀
-
----
-
-**WARNING**
-
-you need to use `moc 0.6.20` and the `master` of `base-library` for this to compile!
-
----
-
-https://forum.dfinity.org/t/how-to-get-access-to-prim-prinicipalofblob/10290
+## testing 🧪
 
 deploy the canister with
 
@@ -59,6 +60,14 @@ run icx-proxy to be able to user query parameters locally
 ```
 $(dfx cache show)/icx-proxy --address 127.0.0.1:8453 -vv
 ```
+
+---
+
+**NOTE**
+
+you can also use `http://127.0.0.1:8000/?canisterId=rrkah-fqaaa-aaaaa-aaaaq-cai&asset=0` or `http://127.0.0.1:8000/1.svg?canisterId=rrkah-fqaaa-aaaaa-aaaaq-cai&asset=0` locally
+
+---
 
 add the following line to `/etc/hosts` if on mac
 
