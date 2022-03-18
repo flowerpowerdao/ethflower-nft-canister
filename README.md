@@ -8,13 +8,13 @@
 
 ## sophisticated deploy 📚
 
--   use `make` to run the standard local deploy, use `make deploy-staging-ic` to deploy the staging canister to the mainnet
+-   use `make` to run the standard local deploy, use `make deploy-staging-ic` to deploy the staging canister to the mainnet, by default it deploys the NFT staging canister locally and uses `assets/output.mp4` and `metadata.json` as file paths
+    -   `metadata.json` **MUST NOT** contain a mint number! (use `cat btcflower.json| sed '/mint/ d' > metadata.json` to remove the mint number)
+    -   note that you need [ext](#ext) installed
 -   The `deploy.zsh` adds another oracle to the NFT canister because the script in the source SVG won't be executed the way it's currently structured. Make sure you use the correct API endpoint there as well!
     -   note: this script is not allowed to contain any `&` or `>` characters!
     -   make sure you change the asset canister url and the currency fetched from the oracle
 -   make sure you create and `assets` folder and provide the `seed.mp4` file and the `metadata.json` file and specify their names in the script accordingly
--   run the `deploy.zsh` and provide the correct arguments, by default it deploys the NFT staging canister locally and uses `assets/output.mp4` and `metadata.json` as file paths
-    -   `metadata.json` **MUST NOT** contain a mint number! (use `cat btcflower.json| sed '/mint/ d' > metadata.json` to remove the mint number)
 -   the weird looking `sed` when uploading the metadata is escaping `"` characters and the variable `$j` is needed for the correct index (`j=$i-1`)
 
 ## caveats 🕳
@@ -104,6 +104,8 @@ or via command line with
 ```
 curl "rwlgt-iiaaa-aaaaa-aaaaa-cai.localhost:8453/?tokenid=rwlgt-iiaaa-aaaaa-aaaaa-cai"
 ```
+
+<h2 id="ext">ext-cli 🔌</h2>
 
 to get the tokenid from the canister and index do the following
 
