@@ -25,9 +25,25 @@
 -   Run `vessel verify --version 0.6.21` to verify everything still builds correctly after adding a new depdenceny
 -   To use `vessels`s moc version when deploying, use `DFX_MOC_PATH="$(vessel bin)/moc" dfx deploy`
 
+## shuffle 🔀
+
+-   The shuffle uses the random beacon to derive a random seed for the PRNG
+-   It basically shuffles all the assets in the `assets` stable variable
+-   The link inside the canister is
+
+```
+tokenIndex -> assetIndex
+assetIndex -> NFT
+```
+
+-   initially the `tokenIndex` matches the `assetIndex` (`assetIndex` = `tokenIndex+1`) and the `assetIndex` matches the `NFT` (`NFT` = `assetIndex+1`)
+-   but after the shuffle the `assetIndex` and the `NFT` mint number no longer match
+-   so so token at `tokenIndex` still points to the same asset at `assetIndex`, but this asset no longer has the same `NFT` mint number
+-   we can always retrieve the `NFT` mint number from the `_asset[index].name` property which we specify when adding an asset to the canister
+
 ## off-chain backup ⛓
 
-We use the `getRegistry` and `getTokens` canister methods to backup state offchain. Therefore we simply use a script that queries the afore mentioned methods every 60 minutes and saves the responses on a server. You can find the script in `state_backup`. We are also submitting every transaction to `CAP`, which again offers off-chain backups of their data.
+We use the `getRegistry` (`tokenIndex -> AccountIdentifier`) and `getTokens` (`tokenIndex -> NFT`) canister methods to backup state offchain. Therefore we simply use a script that queries the afore mentioned methods every 60 minutes and saves the responses on a server. You can find the script in `state_backup`. We are also submitting every transaction to `CAP`, which again offers off-chain backups of their data.
 
 Note that the indices of the json outputs represent the indices of the internal storage. E.g. index `0` means it is the first item in the array. In the UI (entrepot or stoic wallet) those indices are incremented by one, so they start with `1` and not with `0`.
 
