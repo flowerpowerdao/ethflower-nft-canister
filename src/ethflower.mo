@@ -29,7 +29,7 @@ import ExtCommon "./toniq-labs/ext/Common";
 import ExtCore "./toniq-labs/ext/Core";
 import ExtNonFungible "./toniq-labs/ext/NonFungible";
 
-actor class Canister(init_minter: Principal) = this {
+shared ({ caller = init_minter}) actor class Canister() = this {
   
   /*********
   * TYPES *

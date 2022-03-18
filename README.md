@@ -2,7 +2,7 @@
 
 ## quick deploy 🏃‍♀️
 
--   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy --argument '(principal "<your_principal>")' staging --mode reinstall`
+-   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy staging --mode reinstall`
 
 ## sophisticated deploy 📚
 
@@ -56,7 +56,7 @@ So when executing `mintNFT`, the `to` address is taken from `registry.json` and 
 deploy the canister with
 
 ```
-dfx deploy --argument '(principal "3hlbk-k7klp-u4z66-ejvtg-cef6i-aurmy-4umv3-cdtno-uihny-ifis6-dqe")' --no-wallet
+dfx deploy
 ```
 
 use the following command to upload an asset that fits into a single message

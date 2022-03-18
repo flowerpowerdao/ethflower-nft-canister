@@ -15,10 +15,10 @@ asset_canister_url="https://cdfps-iyaaa-aaaae-qabta-cai.raw.ic0.app/"
 if [[ "$mode" == "production" ]]
 then
 echo "production deployment ..."
-dfx deploy --network $network --argument '(principal "cbvco-k27pa-dgumq-tjhcq-iqrcx-ayr3z-moywz-jqblc-nvsif-dayv3-4qe")' $mode
+dfx deploy --network $network $mode
 else
 echo "staging deployment ..."
-yes yes| dfx deploy --network $network --argument '(principal "cbvco-k27pa-dgumq-tjhcq-iqrcx-ayr3z-moywz-jqblc-nvsif-dayv3-4qe")' --mode=reinstall $mode
+yes yes| dfx deploy --network $network --argument --mode=reinstall $mode
 fi
 
 
