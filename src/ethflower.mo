@@ -156,6 +156,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _paymentsState := Iter.toArray(_payments.entries());
     _refundsState := Iter.toArray(_refunds.entries());
     _whitelistState := _whitelist.toArray();
+    _tokensForSaleState := _tokensForSale.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -168,6 +169,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _paymentsState := [];
     _refundsState := [];
     _whitelistState := [];
+    _tokensForSaleState := [];
     
     _salesSettlementsState := [];
   };
@@ -196,9 +198,10 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   var whitelistprice : Nat64 = 300000000;
   var saleStart : Time = 1642906800000000000;
   var whitelistEnd : Time = 1642950000000000000;
-  stable var _tokensForSale : [TokenIndex] = [];
   stable var _soldIcp : Nat64 = 0;
   
+  private stable var _tokensForSaleState : [TokenIndex] = [];
+  private var _tokensForSale: Buffer.Buffer<TokenIndex> = Utils.bufferFromArray<TokenIndex>(_tokensForSaleState);
 
   private stable var _whitelistState : [AccountIdentifier] = [];
   private var _whitelist : Buffer.Buffer<AccountIdentifier> = Utils.bufferFromArray<AccountIdentifier>(_whitelistState);
@@ -208,8 +211,8 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     if (_tokensForSale.size() >= Nat64.toNat(qty)) {
       let ret : Buffer.Buffer<TokenIndex> = Buffer.Buffer(Nat64.toNat(qty));
       while(ret.size() < Nat64.toNat(qty)) {        
-        var token : TokenIndex = _tokensForSale[0];
-        _tokensForSale := Array.filter(_tokensForSale, func(x : TokenIndex) : Bool { x != token } );
+        var token : TokenIndex = _tokensForSale.get(0);
+        _tokensForSale := _tokensForSale.filter(func(x : TokenIndex) : Bool { x != token } );
         ret.add(token);
       };
       ret.toArray();
@@ -299,7 +302,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       return #err("Not enough NFTs available!");
     };
     if (tokens.size() != Nat64.toNat(quantity)) {
-      _tokensForSale := Array.append(_tokensForSale, tokens);
+      _tokensForSale.append(Utils.bufferFromArray(tokens));
       return #err("Quantity error");
     };
     if (_wlr == true) {
@@ -358,7 +361,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             } else {
               if (settlement.expires < Time.now()) {
                 _failedSales := Array.append(_failedSales, [(settlement.buyer, settlement.subaccount)]);
-                _tokensForSale := Array.append(_tokensForSale, settlement.tokens);
+                _tokensForSale.append(Utils.bufferFromArray(settlement.tokens));
                 _salesSettlements.delete(paymentaddress);
                 if (settlement.price == whitelistprice) {
                   addToWhitelist(settlement.buyer);
@@ -719,7 +722,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
     
     //For sale
-    _tokensForSale := [1913,455,210,772,2008];
+    _tokensForSale := Utils.bufferFromArray<TokenIndex>([1913,455,210,772,2008]);
 	};
   func _nat32ToBlob(n : Nat32) : Blob {
     if (n < 256) {
