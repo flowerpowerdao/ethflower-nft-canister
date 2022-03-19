@@ -159,8 +159,8 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _tokenMetadataState := Iter.toArray(_tokenMetadata.entries());
     _ownersState := Iter.toArray(Iter.map<(AccountIdentifier, Buffer.Buffer<TokenIndex>), (AccountIdentifier, [TokenIndex])>(
       _owners.entries(), 
-      func (payment) {
-        return (payment.0, payment.1.toArray());
+      func (owner) {
+        return (owner.0, owner.1.toArray());
       }));
     _tokenListingState := Iter.toArray(_tokenListing.entries());
     _tokenSettlementState := Iter.toArray(_tokenSettlement.entries());
@@ -177,7 +177,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _transactionsState := _transactions.toArray();
     _failedSalesState := _failedSales.toArray();
     _assetsSate := _assets.toArray();
-
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
   system func postupgrade() {
@@ -195,7 +194,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _transactionsState := [];
     _failedSalesState := [];
     _assetsSate := [];
-    
     _salesSettlementsState := [];
   };
   
@@ -358,7 +356,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             if (response.e8s >= settlement.price){
               _payments.put(Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"), switch(_payments.get(Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"))) {
                 case(?p) { p.add(settlement.subaccount); p};
-                case(_) { var p = Utils.bufferFromArray<SubAccount>([settlement.subaccount]); p};
+                case(_) Utils.bufferFromArray<SubAccount>([settlement.subaccount]);
               });
               for (a in settlement.tokens.vals()){
                 _transferTokenToUser(a, settlement.buyer);
@@ -1015,7 +1013,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     Iter.toArray(transformedPayments)
   };
   public shared(msg) func clearPayments(seller : Principal, payments : [SubAccount]) : async () {
-    var removedPayments : Buffer.Buffer<SubAccount> = Buffer.Buffer(0);
+    let removedPayments : Buffer.Buffer<SubAccount> = Buffer.Buffer(0);
     for (p in payments.vals()){
       let response : ICPTs = await LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(seller, ?p)});
       if (response.e8s < 10_000){
