@@ -379,7 +379,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
                   ("price_currency", #Text("ICP")),
                   ("price", #U64(settlement.price)),
                   // there can only be one token in tokens due to the reserve function
-                  ("token_id", #Text(_indexToIdentifier(settlement.tokens[0]))),
+                  ("token_id", #Text(Utils.indexToIdentifier(settlement.tokens[0], Principal.fromActor(this)))),
                   ];
                 caller = msg.caller;
               };
@@ -600,29 +600,12 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
   };
   
-  public shared(msg) func removePayments(toremove : [SubAccount]) : async () {};
-
 	public shared(msg) func setMinter(minter : Principal) : async () {
 		assert(msg.caller == _minter);
 		_minter := minter;
 	};
 
   // start custom
-  private func _prng(current: Nat8) : Nat8 {
-    // a pseudo random number generator that returns Nat8
-    // between 0-99
-    let next : Int =  _fromNat8ToInt(current) * 1103515245 + 12345;
-    return _fromIntToNat8(next) % 100;
-  };
-
-  private func _fromNat8ToInt(n : Nat8) : Int {
-    Int8.toInt(Int8.fromNat8(n))
-  };
-
-  private func _fromIntToNat8(n: Int) : Nat8 {
-    Int8.toNat8(Int8.fromIntWrap(n))
-  };
-
   public shared(msg) func shuffleAssets() :async () {
     assert(msg.caller == _minter and isShuffled == false);
     // get a random seed from the IC
@@ -635,9 +618,9 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     // shuffle the assets array using the random beacon
     while (currentIndex != 1){
       // create a pseudo random number between 0-99
-      randomNumber := _prng(randomNumber);
+      randomNumber := Utils.prng(randomNumber);
       // use that number to calculate a random index between 0 and currentIndex
-      var randomIndex : Nat = Int.abs(Float.toInt(Float.floor(Float.fromInt(_fromNat8ToInt(randomNumber)* currentIndex/100))));
+      var randomIndex : Nat = Int.abs(Float.toInt(Float.floor(Float.fromInt(Utils.fromNat8ToInt(randomNumber)* currentIndex/100))));
       assert(randomIndex < currentIndex);
       currentIndex -= 1;
       // we never want to touch the 0 index
@@ -710,13 +693,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _assets.add(asset);
     _assets.size() - 1;
   };
-  // start custom
-  func _indexToIdentifier(index: Nat32) : Text {
-    let identifier = ExtCore.TokenIdentifier.fromPrincipal(Principal.fromActor(this),index);
-    assert(index == ExtCore.TokenIdentifier.getIndex(identifier));
-    return identifier;
-  };
-  // end custom
   public shared(msg) func initMint() : async () {
 		assert(msg.caller == _minter and _nextTokenId == 0);
     //Mint
@@ -724,7 +700,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       _tokenMetadata.put(_nextTokenId, #nonfungible({
         // we start with asset 1, as index 0
         // contains the seed animation and is not being shuffled
-        metadata = ?_nat32ToBlob(_nextTokenId+1);
+        metadata = ?Utils.nat32ToBlob(_nextTokenId+1);
       }));
       _transferTokenToUser(_nextTokenId, "0000");
       _supply := _supply + 1;
@@ -744,39 +720,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     //For sale
     _tokensForSale := Utils.bufferFromArray<TokenIndex>([1913,455,210,772,2008]);
 	};
-  func _nat32ToBlob(n : Nat32) : Blob {
-    if (n < 256) {
-      return Blob.fromArray([0,0,0, Nat8.fromNat(Nat32.toNat(n))]);
-    } else if (n < 65536) {
-      return Blob.fromArray([
-        0,0,
-        Nat8.fromNat(Nat32.toNat((n >> 8) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n) & 0xFF))
-      ]);
-    } else if (n < 16777216) {
-      return Blob.fromArray([
-        0,
-        Nat8.fromNat(Nat32.toNat((n >> 16) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n >> 8) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n) & 0xFF))
-      ]);
-    } else {
-      return Blob.fromArray([
-        Nat8.fromNat(Nat32.toNat((n >> 24) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n >> 16) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n >> 8) & 0xFF)), 
-        Nat8.fromNat(Nat32.toNat((n) & 0xFF))
-      ]);
-    };
-  };
-
-  func _blobToNat32(b : Blob) : Nat32 {
-    var index : Nat32 = 0;
-    Array.foldRight<Nat8, Nat32>(Blob.toArray(b), 0, func (u8, accum) {
-      index += 1;
-      accum + Nat32.fromNat(Nat8.toNat(u8)) << ((index-1) * 8);
-    });
-  };
 
   public shared(msg) func transfer(request: TransferRequest) : async TransferResponse {
     if (request.amount != 1) {
@@ -1086,7 +1029,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         // end custom
         switch(_getTokenData(tokenid)) {
           case(?metadata)  {
-            let assetid : Nat = Nat32.toNat(_blobToNat32(metadata));
+            let assetid : Nat = Nat32.toNat(Utils.blobToNat32(metadata));
             let asset : Asset = _assets.get(assetid);
             switch(_getParam(request.url, "type")) {
               case(?t) {
@@ -1134,7 +1077,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
     switch(_getParam(request.url, "asset")) {
       case (?atext) {
-        switch(_natFromText(atext)){
+        switch(Utils.natFromText(atext)){
           case(?assetid){
             let asset : Asset = _assets.get(assetid);
             switch(_getParam(request.url, "type")) {
@@ -1190,12 +1133,12 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       // check if there's only on "argument" to it
       case 1 {
         // try and convert it to a Nat from Text
-        switch(_natFromText(path[0])) {
+        switch(Utils.natFromText(path[0])) {
           // if that works, use that
           case (?tokenIndex) {
             switch (_getTokenDataFromIndex(Nat32.fromNat(tokenIndex))) {
               case (?assetIdBlob) {
-                let assetid : Nat = Nat32.toNat(_blobToNat32(assetIdBlob));
+                let assetid : Nat = Nat32.toNat(Utils.blobToNat32(assetIdBlob));
                 let asset : Asset = _assets.get(assetid);
                 return _processFile(Nat.toText(assetid), asset.payload);
               };
@@ -1233,7 +1176,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
   };
   public query func http_request_streaming_callback(token : HttpStreamingCallbackToken) : async HttpStreamingCallbackResponse {
-    switch(_natFromText(token.key)) {
+    switch(Utils.natFromText(token.key)) {
       case null return {body = Blob.fromArray([]); token = null};
       case (?assetid) {
         let asset : Asset = _assets.get(assetid);
@@ -1244,41 +1187,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         };
       };
     };
-  };
-  // Attempt to parse char to digit.
-  private func digitFromChar(c: Char): ?Nat {
-      switch(c) {
-          case '0' ?0;
-          case '1' ?1;
-          case '2' ?2;
-          case '3' ?3;
-          case '4' ?4;
-          case '5' ?5;
-          case '6' ?6;
-          case '7' ?7;
-          case '8' ?8;
-          case '9' ?9;
-          case _ null;
-      }
-  };
-  // Attempts to parse a nat from a path string.
-  private func _natFromText(
-      text : Text
-  ) : ?Nat {
-      var exponent : Nat = text.size();
-      var number : Nat = 0;
-      for (char in text.chars()){
-          switch (digitFromChar(char)) {
-              case (?digit) {
-                  exponent -= 1;
-                  number += digit * (10**exponent);
-              };
-              case (_) {
-                  return null
-              }
-          }
-      };
-      ?number
   };
   private func _processFile(tokenid : TokenIdentifier, file : File) : HttpResponse {
     // start custom
