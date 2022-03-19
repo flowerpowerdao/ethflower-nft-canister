@@ -1,14 +1,7 @@
-import AID "./toniq-labs/util/AccountIdentifier";
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
-import Buffer "./Buffer";
-import Cap "mo:cap/Cap";
 import Cycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
-import ExtAllowance "./toniq-labs/ext/Allowance";
-import ExtCommon "./toniq-labs/ext/Common";
-import ExtCore "./toniq-labs/ext/Core";
-import ExtNonFungible "./toniq-labs/ext/NonFungible";
 import Float "mo:base/Float";
 import HashMap "mo:base/HashMap";
 import Int "mo:base/Int";
@@ -22,13 +15,21 @@ import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Random "mo:base/Random";
 import Result "mo:base/Result";
-import Root "mo:cap/Root";
-import Router "mo:cap/Router";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
+
+import Cap "mo:cap/Cap";
+import Root "mo:cap/Root";
+import Router "mo:cap/Router";
 import Types "mo:cap/Types";
+
+import AID "./toniq-labs/util/AccountIdentifier";
+import Buffer "./Buffer";
+import ExtAllowance "./toniq-labs/ext/Allowance";
+import ExtCommon "./toniq-labs/ext/Common";
+import ExtCore "./toniq-labs/ext/Core";
+import ExtNonFungible "./toniq-labs/ext/NonFungible";
 import Utils "./Utils";
-import _saleTransactions "mo:base/Blob";
 
 shared ({ caller = init_minter}) actor class Canister() = this {
   
@@ -137,7 +138,9 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
 	private var _usedPaymentAddressess : Buffer.Buffer<(AccountIdentifier, Principal, SubAccount)> = Utils.bufferFromArray<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressessState);
 
-	private stable var _transactions : [Transaction] = [];
+	private stable var _transactionsState : [Transaction] = [];
+	private var _transactions : Buffer.Buffer<Transaction> = Utils.bufferFromArray(_transactionsState);
+
   private stable var _supply : Balance  = 0;
   private stable var _minter : Principal  = init_minter;
   private stable var _nextTokenId : TokenIndex  = 0;
@@ -165,6 +168,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _tokensForSaleState := _tokensForSale.toArray();
     _usedPaymentAddressessState := _usedPaymentAddressess.toArray();
     _saleTransactionsState := _saleTransactions.toArray();
+    _transactionsState := _transactions.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -180,6 +184,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _tokensForSaleState := [];
     _usedPaymentAddressessState := [];
     _saleTransactionsState := [];
+    _transactionsState := [];
     
     _salesSettlementsState := [];
   };
@@ -518,13 +523,13 @@ shared ({ caller = init_minter}) actor class Canister() = this {
               };
               ignore cap.insert(event);
               _transferTokenToUser(token, settlement.buyer);
-              _transactions := Array.append(_transactions, [{
+              _transactions.add({
                 token = tokenid;
                 seller = settlement.seller;
                 price = settlement.price;
                 buyer = settlement.buyer;
                 time = Time.now();
-              }]);
+              });
               _tokenListing.delete(token);
               _tokenSettlement.delete(token);
               return #ok();
@@ -963,7 +968,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   
   //Listings
   public query func transactions() : async [Transaction] {
-    _transactions;
+    _transactions.toArray();
   };
   public query func settlements() : async [(TokenIndex, AccountIdentifier, Nat64)] {
     //Lock to admin?
@@ -1202,7 +1207,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
     
     //Just show index
-    var soldValue : Nat = Nat64.toNat(Array.foldLeft<Transaction, Nat64>(_transactions, 0, func (b : Nat64, a : Transaction) : Nat64 { b + a.price }));
+    var soldValue : Nat = Nat64.toNat(Array.foldLeft<Transaction, Nat64>(_transactions.toArray(), 0, func (b : Nat64, a : Transaction) : Nat64 { b + a.price }));
     var avg : Nat = if (_transactions.size() > 0) {
       soldValue/_transactions.size();
     } else {
@@ -1448,7 +1453,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     debug_show(amt/100000000) # "." # debug_show ((amt%100000000)/1000000) # " ICP";
   };
   public query func stats() : async (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
-    var res : (Nat64, Nat64, Nat64) = Array.foldLeft<Transaction, (Nat64, Nat64, Nat64)>(_transactions, (0,0,0), func (b : (Nat64, Nat64, Nat64), a : Transaction) : (Nat64, Nat64, Nat64) {
+    var res : (Nat64, Nat64, Nat64) = Array.foldLeft<Transaction, (Nat64, Nat64, Nat64)>(_transactions.toArray(), (0,0,0), func (b : (Nat64, Nat64, Nat64), a : Transaction) : (Nat64, Nat64, Nat64) {
       var total : Nat64 = b.0 + a.price;
       var high : Nat64 = b.1;
       var low : Nat64 = b.2;
