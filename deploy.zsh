@@ -6,7 +6,7 @@ filename=$(echo $file | sed -E "s/.+\///")
 fileextension=$(echo $file | sed -E "s/.+\.//")
 mime="video/$fileextension"
 network=${1:-local}
-number_of_assets=${2:-100}
+number_of_assets=${2:-50}
 mode=${3:-staging}
 threshold="100000"
 asset_canister_url="https://cdfps-iyaaa-aaaae-qabta-cai.raw.ic0.app/"
@@ -18,7 +18,7 @@ echo "production deployment ..."
 dfx deploy --network $network $mode
 else
 echo "staging deployment ..."
-yes yes| dfx deploy --network $network --argument --mode=reinstall $mode
+yes yes| dfx deploy --network $network --mode=reinstall $mode
 fi
 
 

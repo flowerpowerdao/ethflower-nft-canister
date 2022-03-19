@@ -4,11 +4,11 @@
     "canisters": {
         "staging": {
             "type": "motoko",
-            "main": "src/ethflower.mo"
+            "main": "src/EthFlower.mo"
         },
         "production": {
             "type": "motoko",
-            "main": "src/ethflower.mo"
+            "main": "src/EthFlower.mo"
         }
     },
     "defaults": {
