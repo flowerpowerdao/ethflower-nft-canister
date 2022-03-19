@@ -1,7 +1,14 @@
+import AID "./toniq-labs/util/AccountIdentifier";
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
+import Buffer "./Buffer";
+import Cap "mo:cap/Cap";
 import Cycles "mo:base/ExperimentalCycles";
 import Debug "mo:base/Debug";
+import ExtAllowance "./toniq-labs/ext/Allowance";
+import ExtCommon "./toniq-labs/ext/Common";
+import ExtCore "./toniq-labs/ext/Core";
+import ExtNonFungible "./toniq-labs/ext/NonFungible";
 import Float "mo:base/Float";
 import HashMap "mo:base/HashMap";
 import Int "mo:base/Int";
@@ -15,21 +22,13 @@ import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Random "mo:base/Random";
 import Result "mo:base/Result";
-import Text "mo:base/Text";
-import Time "mo:base/Time";
-
-import Cap "mo:cap/Cap";
 import Root "mo:cap/Root";
 import Router "mo:cap/Router";
+import Text "mo:base/Text";
+import Time "mo:base/Time";
 import Types "mo:cap/Types";
-
-import AID "./toniq-labs/util/AccountIdentifier";
-import Buffer "./Buffer";
-import ExtAllowance "./toniq-labs/ext/Allowance";
-import ExtCommon "./toniq-labs/ext/Common";
-import ExtCore "./toniq-labs/ext/Core";
-import ExtNonFungible "./toniq-labs/ext/NonFungible";
 import Utils "./Utils";
+import _saleTransactions "mo:base/Blob";
 
 shared ({ caller = init_minter}) actor class Canister() = this {
   
@@ -165,6 +164,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _whitelistState := _whitelist.toArray();
     _tokensForSaleState := _tokensForSale.toArray();
     _usedPaymentAddressessState := _usedPaymentAddressess.toArray();
+    _saleTransactionsState := _saleTransactions.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -179,6 +179,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _whitelistState := [];
     _tokensForSaleState := [];
     _usedPaymentAddressessState := [];
+    _saleTransactionsState := [];
     
     _salesSettlementsState := [];
   };
@@ -199,9 +200,12 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     buyer : AccountIdentifier;
     time : Time;
   };
-	private stable var _saleTransactions : [SaleTransaction] = [];
+	private stable var _saleTransactionsState : [SaleTransaction] = [];
+	private var _saleTransactions: Buffer.Buffer<SaleTransaction> = Utils.bufferFromArray<SaleTransaction>(_saleTransactionsState);
+
   private stable var _salesSettlementsState : [(AccountIdentifier, Sale)] = [];
   private var _salesSettlements : HashMap.HashMap<AccountIdentifier, Sale> = HashMap.fromIter(_salesSettlementsState.vals(), 0, AID.equal, AID.hash);
+  
   private stable var _failedSales : [(AccountIdentifier, SubAccount)] = [];
   var price : Nat64 = 500000000;
   var whitelistprice : Nat64 = 300000000;
@@ -248,7 +252,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _whitelist.add(address);
   };
   public query(msg) func saleTransactions() : async [SaleTransaction] {
-    _saleTransactions;
+    _saleTransactions.toArray();
   };
   public query(msg) func salesStats(address : AccountIdentifier) : async (Time, Nat64, Nat) {
     if (Time.now() >= whitelistEnd) {
@@ -342,13 +346,13 @@ shared ({ caller = init_minter}) actor class Canister() = this {
               for (a in settlement.tokens.vals()){
                 _transferTokenToUser(a, settlement.buyer);
               };
-              _saleTransactions := Array.append(_saleTransactions, [{
+              _saleTransactions.add({
                 tokens = settlement.tokens;
                 seller = Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe");
                 price = settlement.price;
                 buyer = settlement.buyer;
                 time = Time.now();
-              }]);
+              });
               _soldIcp += settlement.price;
               _salesSettlements.delete(paymentaddress);
               // start custom
