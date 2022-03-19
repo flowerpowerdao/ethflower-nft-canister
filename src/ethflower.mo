@@ -115,38 +115,40 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   
   //State work
   private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
-	private stable var _tokenMetadataState : [(TokenIndex, Metadata)] = [];
-  private stable var _ownersState : [(AccountIdentifier, [TokenIndex])] = [];
-  
-  //For marketplace
-	private stable var _tokenListingState : [(TokenIndex, Listing)] = [];
-	private stable var _tokenSettlementState : [(TokenIndex, Settlement)] = [];
-	private stable var _paymentsState : [(Principal, [SubAccount])] = [];
-	private stable var _refundsState : [(Principal, [SubAccount])] = [];
-  
   private var _registry : HashMap.HashMap<TokenIndex, AccountIdentifier> = HashMap.fromIter(_registryState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+
+	private stable var _tokenMetadataState : [(TokenIndex, Metadata)] = [];
   private var _tokenMetadata : HashMap.HashMap<TokenIndex, Metadata> = HashMap.fromIter(_tokenMetadataState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-	private var _owners : HashMap.HashMap<AccountIdentifier, [TokenIndex]> = HashMap.fromIter(_ownersState.vals(), 0, AID.equal, AID.hash);
+
+  private stable var _ownersState : [(AccountIdentifier, [TokenIndex])] = [];
+	private var _owners : HashMap.HashMap<AccountIdentifier, Buffer.Buffer<TokenIndex>> = Utils.BufferHashMapFromIter(_ownersState.vals(), 0, AID.equal, AID.hash);
   
-  //For marketplace
+	private stable var _tokenListingState : [(TokenIndex, Listing)] = [];
   private var _tokenListing : HashMap.HashMap<TokenIndex, Listing> = HashMap.fromIter(_tokenListingState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+
+	private stable var _tokenSettlementState : [(TokenIndex, Settlement)] = [];
   private var _tokenSettlement : HashMap.HashMap<TokenIndex, Settlement> = HashMap.fromIter(_tokenSettlementState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+
+	private stable var _paymentsState : [(Principal, [SubAccount])] = [];
   private var _payments : HashMap.HashMap<Principal, Buffer.Buffer<SubAccount>> = Utils.BufferHashMapFromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
+
+	private stable var _refundsState : [(Principal, [SubAccount])] = [];
   private var _refunds : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_refundsState.vals(), 0, Principal.equal, Principal.hash);
-  private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
- 
+  
 	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
 	private var _usedPaymentAddressess : Buffer.Buffer<(AccountIdentifier, Principal, SubAccount)> = Utils.bufferFromArray<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressessState);
 
 	private stable var _transactionsState : [Transaction] = [];
 	private var _transactions : Buffer.Buffer<Transaction> = Utils.bufferFromArray(_transactionsState);
 
+	private stable var _assetsSate : [Asset] = [];
+	private var _assets: Buffer.Buffer<Asset> = Utils.bufferFromArray(_assetsSate);
+
+  private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
+
   private stable var _supply : Balance  = 0;
   private stable var _minter : Principal  = init_minter;
   private stable var _nextTokenId : TokenIndex  = 0;
-	private stable var _assets : [Asset] = [];
-  //_assets := [];
-
   // start custom
   private stable var isShuffled : Bool = false;
   // end custom
@@ -155,7 +157,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   system func preupgrade() {
     _registryState := Iter.toArray(_registry.entries());
     _tokenMetadataState := Iter.toArray(_tokenMetadata.entries());
-    _ownersState := Iter.toArray(_owners.entries());
+    _ownersState := Iter.toArray(Iter.map<(AccountIdentifier, Buffer.Buffer<TokenIndex>), (AccountIdentifier, [TokenIndex])>(
+      _owners.entries(), 
+      func (payment) {
+        return (payment.0, payment.1.toArray());
+      }));
     _tokenListingState := Iter.toArray(_tokenListing.entries());
     _tokenSettlementState := Iter.toArray(_tokenSettlement.entries());
     _paymentsState := Iter.toArray(Iter.map<(Principal, Buffer.Buffer<SubAccount>), (Principal, [SubAccount])>(
@@ -170,6 +176,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _saleTransactionsState := _saleTransactions.toArray();
     _transactionsState := _transactions.toArray();
     _failedSalesState := _failedSales.toArray();
+    _assetsSate := _assets.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -187,6 +194,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _saleTransactionsState := [];
     _transactionsState := [];
     _failedSalesState := [];
+    _assetsSate := [];
     
     _salesSettlementsState := [];
   };
@@ -625,9 +633,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     var randomNumber : Nat8 = Random.byteFrom(seed);
     // get the number of available assets
     var currentIndex : Nat = _assets.size();
-    // create mutable copy of _assets
-    var assets = Array.thaw<Asset>(_assets);
-
 
     // shuffle the assets array using the random beacon
     while (currentIndex != 1){
@@ -643,20 +648,18 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         randomIndex += 1;
       };
       assert((randomIndex != 0) and (currentIndex != 0));
-      let temporaryValue = assets[currentIndex];
-      assets[currentIndex] := assets[randomIndex];
-      assets[randomIndex] := temporaryValue;
+      let temporaryValue = _assets.get(currentIndex);
+      _assets.put(currentIndex, _assets.get(randomIndex));
+      _assets.put(randomIndex,temporaryValue);
     };
 
-    _assets := Array.freeze(assets);
     isShuffled := true;
   };
   // end custom
 
 	public shared(msg) func streamAsset(id : Nat, isThumb : Bool, payload : Blob) : async () {
     assert(msg.caller == _minter);
-    var tassets : [var Asset]  = Array.thaw<Asset>(_assets);
-    var asset : Asset = tassets[id];
+    var asset : Asset = _assets.get(id);
     if (isThumb) {
       switch(asset.thumbnail) {
         case(?t) {
@@ -683,24 +686,21 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         metadata = asset.metadata;
       };
     };
-    tassets[id] := asset;
-    _assets := Array.freeze(tassets);
+    _assets.put(id, asset);
   };
   public shared(msg) func updateThumb(name : Text, file : File) : async ?Nat {
     assert(msg.caller == _minter);
     var i : Nat = 0;
     for(a in _assets.vals()){
       if (a.name == name) {
-        var tassets : [var Asset]  = Array.thaw<Asset>(_assets);
-        var asset : Asset = tassets[i];
+        var asset : Asset = _assets.get(i);
         asset := {
           name = asset.name;
           thumbnail = ?file;
           payload = asset.payload;
           metadata = asset.metadata;
         };
-        tassets[i] := asset;
-        _assets := Array.freeze(tassets);
+        _assets.put(i, asset);
         return ?i;
       };
       i += 1;
@@ -709,7 +709,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   public shared(msg) func addAsset(asset : Asset) : async Nat {
     assert(msg.caller == _minter);
-    _assets := Array.append(_assets, [asset]);
+    _assets.add(asset);
     _assets.size() - 1;
   };
   // start custom
@@ -914,17 +914,17 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   // start custom
   public query func getTokens() : async [(TokenIndex, Text)] {
-    var resp : [(TokenIndex, Text)] = [];
+    var resp : Buffer.Buffer<(TokenIndex, Text)> = Buffer.Buffer(0);
     for(e in _tokenMetadata.entries()){
-      let assetid = _assets[Nat32.toNat(e.0)+1].name;
-      resp := Array.append(resp, [(e.0, assetid)]);
+      let assetid = _assets.get(Nat32.toNat(e.0)+1).name;
+      resp.add((e.0, assetid));
     };
-    resp;
+    resp.toArray();
   };
   // end custom
   public query func tokens(aid : AccountIdentifier) : async Result.Result<[TokenIndex], CommonError> {
     switch(_owners.get(aid)) {
-      case(?tokens) return #ok(tokens);
+      case(?tokens) return #ok(tokens.toArray());
       case(_) return #err(#Other("No tokens"));
     };
   };
@@ -932,11 +932,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   public query func tokens_ext(aid : AccountIdentifier) : async Result.Result<[(TokenIndex, ?Listing, ?Blob)], CommonError> {
 		switch(_owners.get(aid)) {
       case(?tokens) {
-        var resp : [(TokenIndex, ?Listing, ?Blob)] = [];
+        var resp : Buffer.Buffer<(TokenIndex, ?Listing, ?Blob)> = Buffer.Buffer(0);
         for (a in tokens.vals()){
-          resp := Array.append(resp, [(a, _tokenListing.get(a), null)]);
+          resp.add((a, _tokenListing.get(a), null));
         };
-        return #ok(resp);
+        return #ok(resp.toArray());
       };
       case(_) return #err(#Other("No tokens"));
     };
@@ -976,18 +976,18 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   public query func settlements() : async [(TokenIndex, AccountIdentifier, Nat64)] {
     //Lock to admin?
-    var result : [(TokenIndex, AccountIdentifier, Nat64)] = [];
+    var result : Buffer.Buffer<(TokenIndex, AccountIdentifier, Nat64)> = Buffer.Buffer(0);
     for((token, listing) in _tokenListing.entries()) {
       if(_isLocked(token)){
         switch(_tokenSettlement.get(token)) {
           case(?settlement) {
-            result := Array.append(result, [(token, AID.fromPrincipal(settlement.seller, ?settlement.subaccount), settlement.price)]);
+            result.add((token, AID.fromPrincipal(settlement.seller, ?settlement.subaccount), settlement.price));
           };
           case(_) {};
         };
       };
     };
-    result;
+    result.toArray();
   };
   public query(msg) func payments() : async ?[SubAccount] {
     let buffer = _payments.get(msg.caller);
@@ -997,11 +997,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     }
   };
   public query func listings() : async [(TokenIndex, Listing, Metadata)] {
-    var results : [(TokenIndex, Listing, Metadata)] = [];
+    var results : Buffer.Buffer<(TokenIndex, Listing, Metadata)> = Buffer.Buffer(0);
     for(a in _tokenListing.entries()) {
-      results := Array.append(results, [(a.0, a.1, #nonfungible({ metadata = null }))]);
+      results.add((a.0, a.1, #nonfungible({ metadata = null })));
     };
-    results;
+    results.toArray();
   };
   public query(msg) func allSettlements() : async [(TokenIndex, Settlement)] {
     Iter.toArray(_tokenSettlement.entries())
@@ -1015,24 +1015,24 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     Iter.toArray(transformedPayments)
   };
   public shared(msg) func clearPayments(seller : Principal, payments : [SubAccount]) : async () {
-    var removedPayments : [SubAccount] = [];
+    var removedPayments : Buffer.Buffer<SubAccount> = Buffer.Buffer(0);
     for (p in payments.vals()){
       let response : ICPTs = await LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(seller, ?p)});
       if (response.e8s < 10_000){
-        removedPayments := Array.append(removedPayments, [p]);
+        removedPayments.add(p);
       };
     };
     switch(_payments.get(seller)) {
       case(?sellerPayments) {
-        var newPayments : [SubAccount] = [];
+        var newPayments : Buffer.Buffer<SubAccount> = Buffer.Buffer(0);
         for (p in sellerPayments.vals()){
-          if (Option.isNull(Array.find(removedPayments, func(a : SubAccount) : Bool {
+          if (Option.isNull(removedPayments.find(func(a : SubAccount) : Bool {
             Array.equal(a, p, Nat8.equal);
           }))) {
-            newPayments := Array.append(newPayments, [p]);
+            newPayments.add(p);
           };
         };
-        _payments.put(seller, Utils.bufferFromArray(newPayments))
+        _payments.put(seller, newPayments)
       };
       case(_){};
     };
@@ -1083,13 +1083,13 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         // we assume the seed animation video is stored in index 0
         // and thus uploaded first
         if (not isShuffled){
-          return _processFile(Nat.toText(0), _assets[0].payload);
+          return _processFile(Nat.toText(0), _assets.get(0).payload);
         };
         // end custom
         switch(_getTokenData(tokenid)) {
           case(?metadata)  {
             let assetid : Nat = Nat32.toNat(_blobToNat32(metadata));
-            let asset : Asset = _assets[assetid];
+            let asset : Asset = _assets.get(assetid);
             switch(_getParam(request.url, "type")) {
               case(?t) {
                 // start custom
@@ -1138,7 +1138,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       case (?atext) {
         switch(_natFromText(atext)){
           case(?assetid){
-            let asset : Asset = _assets[assetid];
+            let asset : Asset = _assets.get(assetid);
             switch(_getParam(request.url, "type")) {
               case(?t) {
                 // start custom
@@ -1198,7 +1198,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             switch (_getTokenDataFromIndex(Nat32.fromNat(tokenIndex))) {
               case (?assetIdBlob) {
                 let assetid : Nat = Nat32.toNat(_blobToNat32(assetIdBlob));
-                let asset : Asset = _assets[assetid];
+                let asset : Asset = _assets.get(assetid);
                 return _processFile(Nat.toText(assetid), asset.payload);
               };
               case (_) {};
@@ -1238,7 +1238,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     switch(_natFromText(token.key)) {
       case null return {body = Blob.fromArray([]); token = null};
       case (?assetid) {
-        let asset : Asset = _assets[assetid];
+        let asset : Asset = _assets.get(assetid);
         let res = _streamContent(token.key, token.index, asset.payload.data);
         return {
           body = res.0;
@@ -1420,14 +1420,14 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   func _removeFromUserTokens(tindex : TokenIndex, owner : AccountIdentifier) : () {
     switch(_owners.get(owner)) {
-      case(?ownersTokens) _owners.put(owner, Array.filter(ownersTokens, func (a : TokenIndex) : Bool { (a != tindex) }));
+      case(?ownersTokens) _owners.put(owner, ownersTokens.filter(func (a : TokenIndex) : Bool { (a != tindex) }));
       case(_) ();
     };
   };
   func _addToUserTokens(tindex : TokenIndex, receiver : AccountIdentifier) : () {
-    let ownersTokensNew : [TokenIndex] = switch(_owners.get(receiver)) {
-      case(?ownersTokens) Array.append(ownersTokens, [tindex]);
-      case(_) [tindex];
+    let ownersTokensNew : Buffer.Buffer<TokenIndex> = switch(_owners.get(receiver)) {
+      case(?ownersTokens) {ownersTokens.add(tindex); ownersTokens};
+      case(_) Utils.bufferFromArray([tindex]);
     };
     _owners.put(receiver, ownersTokensNew);
   };
