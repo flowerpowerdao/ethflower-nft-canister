@@ -131,7 +131,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   //For marketplace
   private var _tokenListing : HashMap.HashMap<TokenIndex, Listing> = HashMap.fromIter(_tokenListingState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
   private var _tokenSettlement : HashMap.HashMap<TokenIndex, Settlement> = HashMap.fromIter(_tokenSettlementState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-  private var _payments : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
+  private var _payments : HashMap.HashMap<Principal, Buffer.Buffer<SubAccount>> = Utils.BufferHashMapFromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
   private var _refunds : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_refundsState.vals(), 0, Principal.equal, Principal.hash);
   private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
  
@@ -156,7 +156,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _ownersState := Iter.toArray(_owners.entries());
     _tokenListingState := Iter.toArray(_tokenListing.entries());
     _tokenSettlementState := Iter.toArray(_tokenSettlement.entries());
-    _paymentsState := Iter.toArray(_payments.entries());
+    _paymentsState := Iter.toArray(Iter.map<(Principal, Buffer.Buffer<SubAccount>), (Principal, [SubAccount])>(
+      _payments.entries(), 
+      func (payment) {
+        return (payment.0, payment.1.toArray());
+      }));
     _refundsState := Iter.toArray(_refunds.entries());
     _whitelistState := _whitelist.toArray();
     _tokensForSaleState := _tokensForSale.toArray();
@@ -332,8 +336,8 @@ shared ({ caller = init_minter}) actor class Canister() = this {
           case(?settlement){
             if (response.e8s >= settlement.price){
               _payments.put(Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"), switch(_payments.get(Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"))) {
-                case(?p) Array.append(p, [settlement.subaccount]);
-                case(_) [settlement.subaccount];
+                case(?p) { p.add(settlement.subaccount); p};
+                case(_) { var p = Utils.bufferFromArray<SubAccount>([settlement.subaccount]); p};
               });
               for (a in settlement.tokens.vals()){
                 _transferTokenToUser(a, settlement.buyer);
@@ -493,8 +497,8 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             if (response.e8s >= settlement.price){
               //We can settle!
               _payments.put(settlement.seller, switch(_payments.get(settlement.seller)) {
-                case(?p) Array.append(p, [settlement.subaccount]);
-                case(_) [settlement.subaccount];
+                case(?p) {p.add(settlement.subaccount); p};
+                case(_) Utils.bufferFromArray([settlement.subaccount]);
               });
               let event : IndefiniteEvent = {
                       operation = "sale";
@@ -973,7 +977,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     result;
   };
   public query(msg) func payments() : async ?[SubAccount] {
-    _payments.get(msg.caller);
+    let buffer = _payments.get(msg.caller);
+    switch (buffer) {
+      case (?buffer) {?buffer.toArray()};
+      case (_) {null};
+    }
   };
   public query func listings() : async [(TokenIndex, Listing, Metadata)] {
     var results : [(TokenIndex, Listing, Metadata)] = [];
@@ -986,7 +994,12 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     Iter.toArray(_tokenSettlement.entries())
   };
   public query(msg) func allPayments() : async [(Principal, [SubAccount])] {
-    Iter.toArray(_payments.entries())
+    let transformedPayments : Iter.Iter<(Principal, [SubAccount])> = Iter.map<(Principal, Buffer.Buffer<SubAccount>), (Principal, [SubAccount])>(
+      _payments.entries(), 
+      func (payment) {
+        return (payment.0, payment.1.toArray());
+    });
+    Iter.toArray(transformedPayments)
   };
   public shared(msg) func clearPayments(seller : Principal, payments : [SubAccount]) : async () {
     var removedPayments : [SubAccount] = [];
@@ -1006,7 +1019,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             newPayments := Array.append(newPayments, [p]);
           };
         };
-        _payments.put(seller, newPayments)
+        _payments.put(seller, Utils.bufferFromArray(newPayments))
       };
       case(_){};
     };
