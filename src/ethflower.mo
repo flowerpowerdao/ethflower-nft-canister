@@ -169,6 +169,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _usedPaymentAddressessState := _usedPaymentAddressess.toArray();
     _saleTransactionsState := _saleTransactions.toArray();
     _transactionsState := _transactions.toArray();
+    _failedSalesState := _failedSales.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -185,6 +186,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _usedPaymentAddressessState := [];
     _saleTransactionsState := [];
     _transactionsState := [];
+    _failedSalesState := [];
     
     _salesSettlementsState := [];
   };
@@ -211,7 +213,9 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private stable var _salesSettlementsState : [(AccountIdentifier, Sale)] = [];
   private var _salesSettlements : HashMap.HashMap<AccountIdentifier, Sale> = HashMap.fromIter(_salesSettlementsState.vals(), 0, AID.equal, AID.hash);
   
-  private stable var _failedSales : [(AccountIdentifier, SubAccount)] = [];
+  private stable var _failedSalesState : [(AccountIdentifier, SubAccount)] = [];
+  private var _failedSales : Buffer.Buffer<(AccountIdentifier, SubAccount)> = Utils.bufferFromArray<(AccountIdentifier, SubAccount)>(_failedSalesState);
+
   var price : Nat64 = 500000000;
   var whitelistprice : Nat64 = 300000000;
   var saleStart : Time = 1642906800000000000;
@@ -378,7 +382,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
               return #ok();
             } else {
               if (settlement.expires < Time.now()) {
-                _failedSales := Array.append(_failedSales, [(settlement.buyer, settlement.subaccount)]);
+                _failedSales.add((settlement.buyer, settlement.subaccount));
                 _tokensForSale.append(Utils.bufferFromArray(settlement.tokens));
                 _salesSettlements.delete(paymentaddress);
                 if (settlement.price == whitelistprice) {
@@ -401,7 +405,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     Iter.toArray(_salesSettlements.entries());
   };
   public query func failedSales() : async [(AccountIdentifier, SubAccount)] {
-    _failedSales;
+    _failedSales.toArray();
   };
   
   // cap
