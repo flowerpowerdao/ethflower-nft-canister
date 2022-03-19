@@ -134,7 +134,10 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private var _payments : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
   private var _refunds : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_refundsState.vals(), 0, Principal.equal, Principal.hash);
   private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
-	private stable var _usedPaymentAddressess : [(AccountIdentifier, Principal, SubAccount)] = [];
+ 
+	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
+	private var _usedPaymentAddressess : Buffer.Buffer<(AccountIdentifier, Principal, SubAccount)> = Utils.bufferFromArray<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressessState);
+
 	private stable var _transactions : [Transaction] = [];
   private stable var _supply : Balance  = 0;
   private stable var _minter : Principal  = init_minter;
@@ -157,6 +160,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _refundsState := Iter.toArray(_refunds.entries());
     _whitelistState := _whitelist.toArray();
     _tokensForSaleState := _tokensForSale.toArray();
+    _usedPaymentAddressessState := _usedPaymentAddressess.toArray();
 
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
@@ -170,6 +174,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _refundsState := [];
     _whitelistState := [];
     _tokensForSaleState := [];
+    _usedPaymentAddressessState := [];
     
     _salesSettlementsState := [];
   };
@@ -293,7 +298,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
 
     let paymentAddress : AccountIdentifier = AID.fromPrincipal(Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"), ?subaccount);
-    if (Option.isSome(Array.find<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressess, func (a : (AccountIdentifier, Principal, SubAccount)) : Bool { a.0 == paymentAddress}))) {
+    if (Option.isSome(_usedPaymentAddressess.find(func (a : (AccountIdentifier, Principal, SubAccount)) : Bool { a.0 == paymentAddress}))) {
       return #err("Payment address has been used");
     };
 
@@ -309,7 +314,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       removeFromWhitelist(address);
     };
     
-    _usedPaymentAddressess := Array.append(_usedPaymentAddressess, [(paymentAddress, Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"), subaccount)]);
+    _usedPaymentAddressess.add((paymentAddress, Principal.fromText("jdfjg-amcja-wo3zr-6li5k-o4e5f-ymqfk-f4xk2-37o3d-2mezb-45y3t-5qe"), subaccount));
     _salesSettlements.put(paymentAddress, {
       tokens = tokens;
       price = total;
@@ -437,7 +442,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
           return #err(#Other("Price has changed!"));
         } else {
           let paymentAddress : AccountIdentifier = AID.fromPrincipal(listing.seller, ?subaccount);
-          if (Option.isSome(Array.find<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressess, func (a : (AccountIdentifier, Principal, SubAccount)) : Bool { a.0 == paymentAddress}))) {
+          if (Option.isSome(_usedPaymentAddressess.find(func (a : (AccountIdentifier, Principal, SubAccount)) : Bool { a.0 == paymentAddress}))) {
             return #err(#Other("Payment address has been used"));
           };
           _tokenListing.put(token, {
@@ -460,7 +465,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
             };
             case(_){};
           };
-          _usedPaymentAddressess := Array.append(_usedPaymentAddressess, [(paymentAddress, listing.seller, subaccount)]);
+          _usedPaymentAddressess.add((paymentAddress, listing.seller, subaccount));
           _tokenSettlement.put(token, {
             seller = listing.seller;
             price = listing.price;
