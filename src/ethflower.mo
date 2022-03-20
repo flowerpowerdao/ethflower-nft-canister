@@ -24,11 +24,15 @@ import Router "mo:cap/Router";
 import Types "mo:cap/Types";
 
 import AID "./toniq-labs/util/AccountIdentifier";
+import AssetTypes "Assets/Types";
+import Assets "Assets";
 import Buffer "./Buffer";
 import ExtAllowance "./toniq-labs/ext/Allowance";
 import ExtCommon "./toniq-labs/ext/Common";
 import ExtCore "./toniq-labs/ext/Core";
 import ExtNonFungible "./toniq-labs/ext/NonFungible";
+import Http "Http";
+import HttpTypes "Http/Types";
 import Utils "./Utils";
 
 shared ({ caller = init_minter}) actor class Canister() = this {
@@ -91,29 +95,22 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   type AccountBalanceArgs = { account : AccountIdentifier };
   type ICPTs = { e8s : Nat64 };
-  type File = {
-    ctype : Text;//"image/jpeg"
-    data : [Blob];
-  };
-  type Asset = {
-    name : Text;
-    thumbnail : ?File;
-    metadata: ?File;
-    payload : File;
-  };
   
   let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs };
   
   // cap
   // start custom
   private stable var rootBucketId : ?Text = null;
-  let cap = Cap.Cap(null, rootBucketId);
+  let _Cap = Cap.Cap(null, rootBucketId);
   let creationCycles : Nat = 1_000_000_000_000;
   // end custom
   
   private let EXTENSIONS : [Extension] = ["@ext/common", "@ext/nonfungible"];
   
-  //State work
+  /****************
+  * STABLE STATE *
+  ****************/
+
   private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
   private var _registry : HashMap.HashMap<TokenIndex, AccountIdentifier> = HashMap.fromIter(_registryState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
 
@@ -141,8 +138,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 	private stable var _transactionsState : [Transaction] = [];
 	private var _transactions : Buffer.Buffer<Transaction> = Utils.bufferFromArray(_transactionsState);
 
-	private stable var _assetsSate : [Asset] = [];
-	private var _assets: Buffer.Buffer<Asset> = Utils.bufferFromArray(_assetsSate);
+	private stable var _assetsState : [AssetTypes.Asset] = [];
 
   private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
 
@@ -150,7 +146,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private stable var _minter : Principal  = init_minter;
   private stable var _nextTokenId : TokenIndex  = 0;
   // start custom
-  private stable var isShuffled : Bool = false;
+  private stable var shuffled : Bool = false;
   // end custom
 
   //State functions
@@ -176,7 +172,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _saleTransactionsState := _saleTransactions.toArray();
     _transactionsState := _transactions.toArray();
     _failedSalesState := _failedSales.toArray();
-    _assetsSate := _assets.toArray();
+    _assetsState := _Assets.toStable();
     _salesSettlementsState := Iter.toArray(_salesSettlements.entries());
   };
   system func postupgrade() {
@@ -193,7 +189,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _saleTransactionsState := [];
     _transactionsState := [];
     _failedSalesState := [];
-    _assetsSate := [];
+    _assetsState := [];
     _salesSettlementsState := [];
   };
   
@@ -613,7 +609,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     // use that seed to generate a truly random number
     var randomNumber : Nat8 = Random.byteFrom(seed);
     // get the number of available assets
-    var currentIndex : Nat = _assets.size();
+    var currentIndex : Nat = _Assets.size();
 
     // shuffle the assets array using the random beacon
     while (currentIndex != 1){
@@ -629,9 +625,9 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         randomIndex += 1;
       };
       assert((randomIndex != 0) and (currentIndex != 0));
-      let temporaryValue = _assets.get(currentIndex);
-      _assets.put(currentIndex, _assets.get(randomIndex));
-      _assets.put(randomIndex,temporaryValue);
+      let temporaryValue = _Assets.get(currentIndex);
+      _Assets.put(currentIndex, _Assets.get(randomIndex));
+      _Assets.put(randomIndex,temporaryValue);
     };
 
     isShuffled := true;
@@ -640,7 +636,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
 	public shared(msg) func streamAsset(id : Nat, isThumb : Bool, payload : Blob) : async () {
     assert(msg.caller == _minter);
-    var asset : Asset = _assets.get(id);
+    var asset : AssetTypes.Asset = _Assets.get(id);
     if (isThumb) {
       switch(asset.thumbnail) {
         case(?t) {
@@ -667,31 +663,31 @@ shared ({ caller = init_minter}) actor class Canister() = this {
         metadata = asset.metadata;
       };
     };
-    _assets.put(id, asset);
+    _Assets.put(id, asset);
   };
-  public shared(msg) func updateThumb(name : Text, file : File) : async ?Nat {
+  public shared(msg) func updateThumb(name : Text, file : AssetTypes.File) : async ?Nat {
     assert(msg.caller == _minter);
     var i : Nat = 0;
-    for(a in _assets.vals()){
+    for(a in _Assets.vals()){
       if (a.name == name) {
-        var asset : Asset = _assets.get(i);
+        var asset : AssetTypes.Asset = _Assets.get(i);
         asset := {
           name = asset.name;
           thumbnail = ?file;
           payload = asset.payload;
           metadata = asset.metadata;
         };
-        _assets.put(i, asset);
+        _Assets.put(i, asset);
         return ?i;
       };
       i += 1;
     };
     return null;
   };
-  public shared(msg) func addAsset(asset : Asset) : async Nat {
+  public shared(msg) func addAsset(asset : AssetTypes.Asset) : async Nat {
     assert(msg.caller == _minter);
-    _assets.add(asset);
-    _assets.size() - 1;
+    _Assets.add(asset);
+    _Assets.size() - 1;
   };
   public shared(msg) func initMint() : async () {
 		assert(msg.caller == _minter and _nextTokenId == 0);
@@ -720,6 +716,12 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     //For sale
     _tokensForSale := Utils.bufferFromArray<TokenIndex>([1913,455,210,772,2008]);
 	};
+
+  /**********
+  * ASSETS *
+  **********/
+
+  let _Assets = Assets.Assets({_assetsState});
 
   public shared(msg) func transfer(request: TransferRequest) : async TransferResponse {
     if (request.amount != 1) {
@@ -857,7 +859,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   public query func getTokens() : async [(TokenIndex, Text)] {
     var resp : Buffer.Buffer<(TokenIndex, Text)> = Buffer.Buffer(0);
     for(e in _tokenMetadata.entries()){
-      let assetid = _assets.get(Nat32.toNat(e.0)+1).name;
+      let assetid = _Assets.get(Nat32.toNat(e.0)+1).name;
       resp.add((e.0, assetid));
     };
     resp.toArray();
@@ -979,322 +981,21 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
   };
 
-  //HTTP
-  type HeaderField = (Text, Text);
-  type HttpResponse = {
-    status_code: Nat16;
-    headers: [HeaderField];
-    body: Blob;
-    streaming_strategy: ?HttpStreamingStrategy;
-  };
-  type HttpRequest = {
-    method : Text;
-    url : Text;
-    headers : [HeaderField];
-    body : Blob;
-  };
-  type HttpStreamingCallbackToken =  {
-    content_encoding: Text;
-    index: Nat;
-    key: Text;
-    sha256: ?Blob;
-  };
+  /********
+  * HTTP *
+  ********/
 
-  type HttpStreamingStrategy = {
-    #Callback: {
-        // start custom
-        callback: shared () -> async ();
-        // end custom
-        token: HttpStreamingCallbackToken;
-    };
-  };
-
-  type HttpStreamingCallbackResponse = {
-    body: Blob;
-    token: ?HttpStreamingCallbackToken;
-  };
-  let NOT_FOUND : HttpResponse = {status_code = 404; headers = []; body = Blob.fromArray([]); streaming_strategy = null};
-  let BAD_REQUEST : HttpResponse = {status_code = 400; headers = []; body = Blob.fromArray([]); streaming_strategy = null};
+  let _HttpHandler = Http.HttpHandler(this, {_Assets});
   
-  public query func http_request(request : HttpRequest) : async HttpResponse {
-    let path = Iter.toArray(Text.tokens(request.url, #text("/")));
-    switch(_getParam(request.url, "tokenid")) {
-      case (?tokenid) {
-        // start custom
-        // we assume the seed animation video is stored in index 0
-        // and thus uploaded first
-        if (not isShuffled){
-          return _processFile(Nat.toText(0), _assets.get(0).payload);
-        };
-        // end custom
-        switch(_getTokenData(tokenid)) {
-          case(?metadata)  {
-            let assetid : Nat = Nat32.toNat(Utils.blobToNat32(metadata));
-            let asset : Asset = _assets.get(assetid);
-            switch(_getParam(request.url, "type")) {
-              case(?t) {
-                // start custom
-                switch(t) {
-                  case("thumbnail") {
-                    switch(asset.thumbnail) {
-                      case(?thumb) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", thumb.ctype)];
-                          body = thumb.data[0];
-                          streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
-                  case("metadata") {
-                    switch(asset.metadata) {
-                      case(?metadata) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", metadata.ctype)];
-                          body = metadata.data[0];
-                          streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
-                  case(_){};
-                };
-                // end custom
-              };
-              case(_) {
-              };
-            };
-            return _processFile(Nat.toText(assetid), asset.payload);
-          };
-          case (_){};
-        };
-      };
-      case (_){};
-    };
-    switch(_getParam(request.url, "asset")) {
-      case (?atext) {
-        switch(Utils.natFromText(atext)){
-          case(?assetid){
-            let asset : Asset = _assets.get(assetid);
-            switch(_getParam(request.url, "type")) {
-              case(?t) {
-                // start custom
-                switch(t) {
-                  case("thumbnail") {
-                    switch(asset.thumbnail) {
-                      case(?thumb) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", thumb.ctype)];
-                          body = thumb.data[0];
-                        streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
-                  case("metadata") {
-                    switch(asset.metadata) {
-                      case(?metadata) {
-                        return {
-                          status_code = 200;
-                          headers = [("content-type", metadata.ctype)];
-                          body = metadata.data[0];
-                          streaming_strategy = null;
-                        };
-                      };
-                      case (_){};
-                    };
-                  };
-                  case(_){};
-                };
-                // end custom
-              };
-              case(_) {
-              };
-            };
-            return _processFile(Nat.toText(assetid), asset.payload);
-          };
-          case (_){};
-        };
-      };
-      case (_){};
-    };
-
-    /**********************
-    * TOKEN INDEX LOOKUP *
-    **********************/
-    // check if theres a path
-    switch (path.size()) {
-      // check if there's only on "argument" to it
-      case 1 {
-        // try and convert it to a Nat from Text
-        switch(Utils.natFromText(path[0])) {
-          // if that works, use that
-          case (?tokenIndex) {
-            switch (_getTokenDataFromIndex(Nat32.fromNat(tokenIndex))) {
-              case (?assetIdBlob) {
-                let assetid : Nat = Nat32.toNat(Utils.blobToNat32(assetIdBlob));
-                let asset : Asset = _assets.get(assetid);
-                return _processFile(Nat.toText(assetid), asset.payload);
-              };
-              case (_) {};
-            };
-          };
-          case (_) {};
-        };
-      };
-      case (_) {};
-    };
-    
-    //Just show index
-    var soldValue : Nat = Nat64.toNat(Array.foldLeft<Transaction, Nat64>(_transactions.toArray(), 0, func (b : Nat64, a : Transaction) : Nat64 { b + a.price }));
-    var avg : Nat = if (_transactions.size() > 0) {
-      soldValue/_transactions.size();
-    } else {
-      0;
-    };
-    return {
-      status_code = 200;
-      headers = [("content-type", "text/plain")];
-      body = Text.encodeUtf8 (
-        "BTC Flower \n" #
-        "---\n" #
-        "Cycle Balance:                            ~" # debug_show (Cycles.balance()/1000000000000) # "T\n" #
-        "Minted NFTs:                              " # debug_show (_nextTokenId) # "\n" #
-        "Marketplace Listings:                     " # debug_show (_tokenListing.size()) # "\n" #
-        "Sold via Marketplace:                     " # debug_show (_transactions.size()) # "\n" #
-        "Sold via Marketplace in ICP:              " # _displayICP(soldValue) # "\n" #
-        "Average Price ICP Via Marketplace:        " # _displayICP(avg) # "\n" #
-        "Admin:                                    " # debug_show (_minter) # "\n"
-      );
-      streaming_strategy = null;
-    };
-  };
-  public query func http_request_streaming_callback(token : HttpStreamingCallbackToken) : async HttpStreamingCallbackResponse {
-    switch(Utils.natFromText(token.key)) {
-      case null return {body = Blob.fromArray([]); token = null};
-      case (?assetid) {
-        let asset : Asset = _assets.get(assetid);
-        let res = _streamContent(token.key, token.index, asset.payload.data);
-        return {
-          body = res.0;
-          token = res.1;
-        };
-      };
-    };
-  };
-  private func _processFile(tokenid : TokenIdentifier, file : File) : HttpResponse {
-    // start custom
-    let self: Principal = Principal.fromActor(this);
-    let canisterId: Text = Principal.toText(self);
-    let canister = actor (canisterId) : actor { http_request_streaming_callback : shared () -> async () };
-    // end custom
-
-    if (file.data.size() > 1 ) {
-      let (payload, token) = _streamContent(tokenid, 0, file.data);
-      return {
-        // start custom
-        status_code = 200;
-        headers = [
-          ("Content-Type", file.ctype), 
-          ("Cache-Control", "public, max-age=15552000"),
-          ("Access-Control-Expose-Headers","Content-Length, Content-Range"),
-          ("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS"),
-          ("Access-Control-Allow-Origin", "*"),
-          ("Content-Length","505258"),
-          ("Accept-Ranges","bytes"),
-        ];
-        // end custom
-        body = payload;
-        streaming_strategy = ?#Callback({
-          token = Option.unwrap(token);
-          callback = canister.http_request_streaming_callback;
-        });
-      };
-    } else {
-      return {
-        status_code = 200;
-        headers = [("content-type", file.ctype), ("cache-control", "public, max-age=15552000")];
-        body = file.data[0];
-        streaming_strategy = null;
-      };
-    };
+  public query func http_request_streaming_callbackrequest(request : HttpTypes.HttpRequest) : async HttpTypes.HttpResponse {
+    _HttpHandler.http_request_streaming_callbackrequest(request);
   };
 
-  private func _getTokenDataFromIndex(tokenind: Nat32) : ?Blob {
-    switch (_tokenMetadata.get(tokenind)) {
-      case (?token_metadata) {
-        switch(token_metadata) {
-          case (#fungible data) return null;
-          case (#nonfungible data) return data.metadata;
-        };
-      };
-      case (_) {
-        return null;
-      };
-    };
-    return null;
+  public query func http_request_streaming_callback(token : HttpTypes.HttpStreamingCallbackToken) : async HttpTypes.HttpStreamingCallbackResponse {
+    _HttpHandler.http_request_streaming_callback(token);
   };
+
   
-  private func _getTokenData(token : Text) : ?Blob {
-    if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(this)) == false) {
-      return null;
-    };
-    let tokenind = ExtCore.TokenIdentifier.getIndex(token);
-    switch (_tokenMetadata.get(tokenind)) {
-      case (?token_metadata) {
-        switch(token_metadata) {
-          case (#fungible data) return null;
-          case (#nonfungible data) return data.metadata;
-        };
-      };
-      case (_) {
-        return null;
-      };
-    };
-    return null;
-  };
-  private func _getParam(url : Text, param : Text) : ?Text {
-    var _s : Text = url;
-    Iter.iterate<Text>(Text.split(_s, #text("/")), func(x, _i) {
-      _s := x;
-    });
-    Iter.iterate<Text>(Text.split(_s, #text("?")), func(x, _i) {
-      if (_i == 1) _s := x;
-    });
-    var t : ?Text = null;
-    var found : Bool = false;
-    Iter.iterate<Text>(Text.split(_s, #text("&")), func(x, _i) {
-      if (found == false) {
-        Iter.iterate<Text>(Text.split(x, #text("=")), func(y, _ii) {
-          if (_ii == 0) {
-            if (Text.equal(y, param)) found := true;
-          } else if (found == true) t := ?y;
-        });
-      };
-    });
-    return t;
-  };
-  private func _streamContent(id : Text, idx : Nat, data : [Blob]) : (Blob, ?HttpStreamingCallbackToken) {
-    let payload = data[idx];
-    let size = data.size();
-
-    if (idx + 1 == size) {
-        return (payload, null);
-    };
-
-    return (payload, ?{
-        content_encoding = "gzip";
-        index = idx + 1;
-        sha256 = null;
-        key = id;
-    });
-  };
     
   //Internal cycle management - good general case
   public func acceptCycles() : async () {
@@ -1307,39 +1008,6 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   
   //Private
-  func _removeTokenFromUser(tindex : TokenIndex) : () {
-    let owner : ?AccountIdentifier = _getBearer(tindex);
-    _registry.delete(tindex);
-    switch(owner){
-      case (?o) _removeFromUserTokens(tindex, o);
-      case (_) {};
-    };
-  };
-  func _transferTokenToUser(tindex : TokenIndex, receiver : AccountIdentifier) : () {
-    let owner : ?AccountIdentifier = _getBearer(tindex); // who owns the token (no one if mint)
-    _registry.put(tindex, receiver); // transfer the token to the new owner
-    switch(owner){
-      case (?o) _removeFromUserTokens(tindex, o);
-      case (_) {};
-    };
-    _addToUserTokens(tindex, receiver);
-  };
-  func _removeFromUserTokens(tindex : TokenIndex, owner : AccountIdentifier) : () {
-    switch(_owners.get(owner)) {
-      case(?ownersTokens) _owners.put(owner, ownersTokens.filter(func (a : TokenIndex) : Bool { (a != tindex) }));
-      case(_) ();
-    };
-  };
-  func _addToUserTokens(tindex : TokenIndex, receiver : AccountIdentifier) : () {
-    let ownersTokensNew : Buffer.Buffer<TokenIndex> = switch(_owners.get(receiver)) {
-      case(?ownersTokens) {ownersTokens.add(tindex); ownersTokens};
-      case(_) Utils.bufferFromArray([tindex]);
-    };
-    _owners.put(receiver, ownersTokensNew);
-  };
-  func _getBearer(tindex : TokenIndex) : ?AccountIdentifier {
-    _registry.get(tindex);
-  };
   func _isLocked(token : TokenIndex) : Bool {
     switch(_tokenListing.get(token)) {
       case(?listing){
