@@ -5,8 +5,10 @@ import Debug "mo:base/Debug";
 import Float "mo:base/Float";
 import HashMap "mo:base/HashMap";
 import Int "mo:base/Int";
+import Int64 "mo:base/Int64";
 import Int8 "mo:base/Int8";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
@@ -19,6 +21,7 @@ import Text "mo:base/Text";
 import Time "mo:base/Time";
 
 import Cap "mo:cap/Cap";
+import Encoding "mo:encoding/Binary";
 import Root "mo:cap/Root";
 import Router "mo:cap/Router";
 import Types "mo:cap/Types";
@@ -89,6 +92,14 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   type AccountBalanceArgs = { account : AccountIdentifier };
   type ICPTs = { e8s : Nat64 };
+  type SendArgs = {
+    memo: Nat64;
+    amount: ICPTs;
+    fee: ICPTs;
+    from_subaccount: ?SubAccount;
+    to: AccountIdentifier;
+    created_at_time: ?Time;
+  };
   type File = {
     ctype : Text;//"image/jpeg"
     data : [Blob];
@@ -100,7 +111,10 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     payload : File;
   };
   
-  let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs };
+  let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { 
+    account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs;
+    send_dfx : shared SendArgs -> async Nat64; 
+  };
   
   // cap
   // start custom
@@ -131,7 +145,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private var _tokenSettlement : HashMap.HashMap<TokenIndex, Settlement> = HashMap.fromIter(_tokenSettlementState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
   private var _payments : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
   private var _refunds : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_refundsState.vals(), 0, Principal.equal, Principal.hash);
-  private var ESCROWDELAY : Time = 10 * 60 * 1_000_000_000;
+  private var ESCROWDELAY : Time = 2 * 60 * 1_000_000_000;
 	private stable var _usedPaymentAddressess : [(AccountIdentifier, Principal, SubAccount)] = [];
 	private stable var _transactions : [Transaction] = [];
   private stable var _supply : Balance  = 0;
@@ -139,6 +153,15 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private stable var _nextTokenId : TokenIndex  = 0;
 	private stable var _assets : [Asset] = [];
   //_assets := [];
+
+  //EXTv2 SALE
+  private stable var _disbursementsState : [(TokenIndex, AccountIdentifier, SubAccount, Nat64)] = [];
+  private stable var _nextSubAccount : Nat = 0;
+  private var _disbursements : List.List<(TokenIndex, AccountIdentifier, SubAccount, Nat64)> = List.fromArray(_disbursementsState);
+  private var salesFees : [(AccountIdentifier, Nat64)] = [
+    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 7500), //Royalty Fee 
+    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 1000), //Entrepot Fee 
+  ];
 
   // start custom
   private stable var isShuffled : Bool = false;
@@ -153,6 +176,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _tokenSettlementState := Iter.toArray(_tokenSettlement.entries());
     _paymentsState := Iter.toArray(_payments.entries());
     _refundsState := Iter.toArray(_refunds.entries());
+    _disbursementsState := List.toArray(_disbursements);
   };
   system func postupgrade() {
     _registryState := [];
@@ -162,6 +186,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _tokenSettlementState := [];
     _paymentsState := [];
     _refundsState := [];
+    _disbursementsState := [];
   };
   
   // cap
@@ -185,39 +210,41 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   // end custom
 
   //Listings
-  public shared(msg) func lock(tokenid : TokenIdentifier, price : Nat64, address : AccountIdentifier, subaccount : SubAccount) : async Result.Result<AccountIdentifier, CommonError> {
+  //EXTv2 SALE
+  func _natToSubAccount(n : Nat) : SubAccount {
+    let n_byte = func(i : Nat) : Nat8 {
+      assert(i < 32);
+      let shift : Nat = 8 * (32 - 1 - i);
+      Nat8.fromIntWrap(n / 2**shift)
+    };
+    Array.tabulate<Nat8>(32, n_byte)
+  };
+
+  func _getNextSubAccount() : SubAccount {
+    var _saOffset = 4294967296;
+    _nextSubAccount += 1;
+    return _natToSubAccount(_saOffset+_nextSubAccount);
+  };
+
+  func _addDisbursement(d : (TokenIndex, AccountIdentifier, SubAccount, Nat64)) : () {
+    _disbursements := List.push(d, _disbursements);
+  };
+
+  public shared(msg) func lock(tokenid : TokenIdentifier, price : Nat64, address : AccountIdentifier, _subaccountNOTUSED : SubAccount) : async Result.Result<AccountIdentifier, CommonError> {
 		if (ExtCore.TokenIdentifier.isPrincipal(tokenid, Principal.fromActor(this)) == false) {
 			return #err(#InvalidToken(tokenid));
-		};
-    var c : Nat = 0;
-    var failed : Bool = true;
-    while(c < 29) {
-      if (failed) {
-        if (subaccount[c] > 0) { 
-          failed := false;
-        };
-      };
-      c += 1;
-    };
-    if (failed) {
-      return #err(#Other("Invalid subaccount"));
-    };
-		if (subaccount.size() != 32) {
-			return #err(#Other("Wrong subaccount"));				
 		};
 		let token = ExtCore.TokenIdentifier.getIndex(tokenid);
     if (_isLocked(token)) {					
       return #err(#Other("Listing is locked"));				
     };
+    let subaccount = _getNextSubAccount();
 		switch(_tokenListing.get(token)) {
 			case (?listing) {
         if (listing.price != price) {
           return #err(#Other("Price has changed!"));
         } else {
-          let paymentAddress : AccountIdentifier = AID.fromPrincipal(listing.seller, ?subaccount);
-          if (Option.isSome(Array.find<(AccountIdentifier, Principal, SubAccount)>(_usedPaymentAddressess, func (a : (AccountIdentifier, Principal, SubAccount)) : Bool { a.0 == paymentAddress}))) {
-            return #err(#Other("Payment address has been used"));
-          };
+          let paymentAddress : AccountIdentifier = AID.fromPrincipal(Principal.fromActor(this), ?subaccount);
           _tokenListing.put(token, {
             seller = listing.seller;
             price = listing.price;
@@ -228,17 +255,16 @@ shared ({ caller = init_minter}) actor class Canister() = this {
               let resp : Result.Result<(), CommonError> = await settle(tokenid);
               switch(resp) {
                 case(#ok) {
-                  return #err(#Other("Listing as sold"));
+                  return #err(#Other("Listing has sold"));
                 };
                 case(#err _) {
-                  //If settled outside of here...
-                  if (Option.isNull(_tokenListing.get(token))) return #err(#Other("Listing as sold"));
+                  //Atomic protection
+                  if (Option.isNull(_tokenListing.get(token))) return #err(#Other("Listing has sold"));
                 };
               };
             };
             case(_){};
           };
-          _usedPaymentAddressess := Array.append(_usedPaymentAddressess, [(paymentAddress, listing.seller, subaccount)]);
           _tokenSettlement.put(token, {
             seller = listing.seller;
             price = listing.price;
@@ -260,41 +286,56 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 		let token = ExtCore.TokenIdentifier.getIndex(tokenid);
     switch(_tokenSettlement.get(token)) {
       case(?settlement){
-        let response : ICPTs = await LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(settlement.seller, ?settlement.subaccount)});
+        let response : ICPTs = await LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(Principal.fromActor(this), ?settlement.subaccount)});
         switch(_tokenSettlement.get(token)) {
           case(?settlement){
             if (response.e8s >= settlement.price){
-              //We can settle!
-              _payments.put(settlement.seller, switch(_payments.get(settlement.seller)) {
-                case(?p) Array.append(p, [settlement.subaccount]);
-                case(_) [settlement.subaccount];
-              });
-              let event : IndefiniteEvent = {
-                      operation = "sale";
-                      details = [
-                        ("to", #Text(settlement.buyer)),
-                        ("from", #Principal(settlement.seller)),
-                        ("price_decimals", #U64(8)),
-                        ("price_currency", #Text("ICP")),
-                        ("price", #U64(settlement.price)),
-                        ("token_id", #Text(tokenid))
-                      ];
-                      caller = msg.caller;
+              switch (_registry.get(token)) {
+                case (?token_owner) {
+                  var bal : Nat64 = settlement.price - (10000 * Nat64.fromNat(salesFees.size() + 1));
+                  var rem = bal;
+                  for(f in salesFees.vals()){
+                    var _fee : Nat64 = bal * f.1 / 100000;
+                    _addDisbursement((token, f.0, settlement.subaccount, _fee));
+                    rem := rem -  _fee : Nat64;
+                  };
+                  _addDisbursement((token, token_owner, settlement.subaccount, rem));
+                  let event : IndefiniteEvent = {
+                    operation = "sale";
+                    details = [
+                      ("to", #Text(settlement.buyer)),
+                      ("from", #Principal(settlement.seller)),
+                      ("price_decimals", #U64(8)),
+                      ("price_currency", #Text("ICP")),
+                      ("price", #U64(settlement.price)),
+                      ("token_id", #Text(tokenid))
+                    ];
+                    caller = msg.caller;
+                  };
+                  ignore cap.insert(event);
+                  _transferTokenToUser(token, settlement.buyer);
+                  _transactions := Array.append(_transactions, [{
+                    token = tokenid;
+                    seller = settlement.seller;
+                    price = settlement.price;
+                    buyer = settlement.buyer;
+                    time = Time.now();
+                  }]);
+                  _tokenListing.delete(token);
+                  _tokenSettlement.delete(token);
+                  return #ok();
+                };
+                case (_) {
+                  return #err(#InvalidToken(tokenid));
+                };
               };
-              ignore cap.insert(event);
-              _transferTokenToUser(token, settlement.buyer);
-              _transactions := Array.append(_transactions, [{
-                token = tokenid;
-                seller = settlement.seller;
-                price = settlement.price;
-                buyer = settlement.buyer;
-                time = Time.now();
-              }]);
-              _tokenListing.delete(token);
-              _tokenSettlement.delete(token);
-              return #ok();
             } else {
-              return #err(#Other("Insufficient funds sent"));
+              if (_isLocked(token)) {					
+                return #err(#Other("Insufficient funds sent"));
+              } else {
+                _tokenSettlement.delete(token);
+                return #err(#Other("Nothing to settle"));				
+              };
             };
           };
           case(_) return #err(#Other("Nothing to settle"));
@@ -349,8 +390,33 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       };
     };
   };
-  
-  public shared(msg) func removePayments(toremove : [SubAccount]) : async () {};
+
+  public shared(msg) func disburse() : async () {
+    var _cont : Bool = true;
+    while(_cont){
+      var last = List.pop(_disbursements);
+      switch(last.0){
+        case(?d) {
+          _disbursements := last.1;
+          try {
+            var bh = await LEDGER_CANISTER.send_dfx({
+              memo = Encoding.BigEndian.toNat64(Blob.toArray(Principal.toBlob(Principal.fromText(ExtCore.TokenIdentifier.fromPrincipal(Principal.fromActor(this), d.0)))));
+              amount = { e8s = d.3 };
+              fee = { e8s = 10000 };
+              from_subaccount = ?d.2;
+              to = d.1;
+              created_at_time = null;
+            });
+          } catch (e) {
+            _disbursements := List.push(d, _disbursements);
+          };
+        };
+        case(_) {
+          _cont := false;
+        };
+      };
+    };
+  };
 
 	public shared(msg) func setMinter(minter : Principal) : async () {
 		assert(msg.caller == _minter);
