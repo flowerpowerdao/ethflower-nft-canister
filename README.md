@@ -2,6 +2,10 @@
 
 # eth flower nft 🌼
 
+# TO-DOs after launch 
+- [] call `endAuction` after auction ends
+- [] call `shuffleAssets` 24 hours after `endAuction`
+
 ## quick deploy 🏃‍♀️
 
 -   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy staging --mode reinstall`

@@ -165,6 +165,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
   // start custom
   private stable var isShuffled : Bool = false;
+  private stable var auctionEnded : Bool = false;
   // end custom
 
   //State functions
@@ -348,6 +349,9 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 		if (ExtCore.TokenIdentifier.isPrincipal(request.token, Principal.fromActor(this)) == false) {
 			return #err(#InvalidToken(request.token));
 		};
+    if (not auctionEnded and msg.caller != Principal.fromText("f7kev-f7vep-kclyf-u5gfo-i3oxk-w26ds-xkewz-gye6h-yuvve-iszjj-sqe")){
+      return #err(#Other("Auction is not ended"));
+    };
 		let token = ExtCore.TokenIdentifier.getIndex(request.token);
     if (_isLocked(token)) {					
       return #err(#Other("Listing is locked"));				
@@ -437,6 +441,11 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
   private func _fromIntToNat8(n: Int) : Nat8 {
     Int8.toNat8(Int8.fromIntWrap(n))
+  };
+
+  public shared(msg) func endAuction() {
+    assert(msg.caller == _minter and auctionEnded == false);
+    auctionEnded := true;
   };
 
   public shared(msg) func shuffleAssets() :async () {
@@ -561,7 +570,10 @@ shared ({ caller = init_minter}) actor class Canister() = this {
       ("b4be27cac04a4e2b2e90ca2f55e033092edf53a67a7ed228044eddb3726eb24f", 1), 
       ("b4be27cac04a4e2b2e90ca2f55e033092edf53a67a7ed228044eddb3726eb24f", 2), 
       ("b4be27cac04a4e2b2e90ca2f55e033092edf53a67a7ed228044eddb3726eb24f", 3), 
-      ("b4be27cac04a4e2b2e90ca2f55e033092edf53a67a7ed228044eddb3726eb24f", 4), 
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 4), 
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 5), 
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 6), 
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 7), 
     ];
 
     for(a in airdrop.vals()){
