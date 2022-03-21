@@ -10,6 +10,7 @@
 -   run off chain backup script
 -   call `endAuction` after auction ends
 -   call `shuffleAssets` 24 hours after `endAuction`
+-   call `disburse` regualry to disburse payments
 
 ## quick deploy 🏃‍♀️
 
