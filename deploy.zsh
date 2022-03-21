@@ -6,7 +6,7 @@ filename=$(echo $file | sed -E "s/.+\///")
 fileextension=$(echo $file | sed -E "s/.+\.//")
 mime="video/$fileextension"
 network=${1:-local}
-number_of_assets=${2:-50}
+number_of_assets=${2:-10}
 mode=${3:-staging}
 threshold="100000"
 asset_canister_url="https://cdfps-iyaaa-aaaae-qabta-cai.raw.ic0.app/"
@@ -155,14 +155,13 @@ do
     })'
 done
 
+# init cap
+echo "initiating cap ..."
+dfx canister --network $network call $mode initCap
+
 # init mint
 echo "initiating mint ..."
 dfx canister --network $network call $mode initMint
-
-# init cap
-# first create the asset calling addAsset
-echo "initiating cap ..."
-dfx canister --network $network call $mode initCap
 
 # check the asset that are linked to the tokens
 for i in {0..9}
