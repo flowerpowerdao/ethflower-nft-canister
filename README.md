@@ -2,9 +2,14 @@
 
 # eth flower nft 🌼
 
-# TO-DOs after launch 
-- [] call `endAuction` after auction ends
-- [] call `shuffleAssets` 24 hours after `endAuction`
+# TO-DOs
+
+-   check all addresses and parameters in `deploy.zsh`
+-   run `make deploy-production`
+-   check if all assets uploaded correctly
+-   run off chain backup script
+-   call `endAuction` after auction ends
+-   call `shuffleAssets` 24 hours after `endAuction`
 
 ## quick deploy 🏃‍♀️
 
