@@ -22,6 +22,11 @@ let additions = [
   , version = "v1.0.4"
   , dependencies = ["base"] : List Text
   },
+  { name = "canistergeek"
+  , repo = "https://github.com/usergeek/canistergeek-ic-motoko"
+  , version = "v0.0.3"
+  , dependencies = ["base"] : List Text
+  }
 ] : List Package
 
 let overrides = [] : List Package
