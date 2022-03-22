@@ -20,6 +20,7 @@ import Result "mo:base/Result";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
 
+import Canistergeek "mo:canistergeek/canistergeek";
 import Cap "mo:cap/Cap";
 import Encoding "mo:encoding/Binary";
 import Root "mo:cap/Root";
@@ -163,6 +164,34 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 1000), //Entrepot Fee 
   ];
 
+  /****************
+  * CANISTERGEEK *
+  ****************/
+  private let canistergeekMonitor = Canistergeek.Monitor();
+  stable var _canistergeekMonitorUD: ? Canistergeek.UpgradeData = null;
+
+  /**
+  * Returns collected data based on passed parameters.
+  * Called from browser.
+  */
+  public query ({caller}) func getCanisterMetrics(parameters: Canistergeek.GetMetricsParameters): async ?Canistergeek.CanisterMetrics {
+      validateCaller(caller);
+      canistergeekMonitor.getMetrics(parameters);
+  };
+
+  /**
+  * Force collecting the data at current time.
+  * Called from browser or any canister "update" method.
+  */
+  public shared ({caller}) func collectCanisterMetrics(): async () {
+      validateCaller(caller);
+      canistergeekMonitor.collectMetrics();
+  };
+  
+  private func validateCaller(principal: Principal) : () {
+    assert( principal == Principal.fromText("ikywv-z7xvl-xavcg-ve6kg-dbbtx-wy3gy-qbtwp-7ylai-yl4lc-lwetg-kqe"))
+  };
+
   // start custom
   private stable var isShuffled : Bool = false;
   private stable var auctionEnded : Bool = false;
@@ -178,6 +207,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _paymentsState := Iter.toArray(_payments.entries());
     _refundsState := Iter.toArray(_refunds.entries());
     _disbursementsState := List.toArray(_disbursements);
+    _canistergeekMonitorUD := ? canistergeekMonitor.preupgrade();
   };
   system func postupgrade() {
     _registryState := [];
@@ -188,12 +218,15 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     _paymentsState := [];
     _refundsState := [];
     _disbursementsState := [];
+    canistergeekMonitor.postupgrade(_canistergeekMonitorUD);
+    _canistergeekMonitorUD := null;
   };
   
   // cap
   // start custom
   public shared(msg) func initCap() : async Result.Result<(), Text> {
     assert(msg.caller == _minter);
+    canistergeekMonitor.collectMetrics();
     let pid = Principal.fromActor(this);
     let tokenContractId = Principal.toText(pid);
 
@@ -232,6 +265,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
 
   public shared(msg) func lock(tokenid : TokenIdentifier, price : Nat64, address : AccountIdentifier, _subaccountNOTUSED : SubAccount) : async Result.Result<AccountIdentifier, CommonError> {
+    canistergeekMonitor.collectMetrics();
 		if (ExtCore.TokenIdentifier.isPrincipal(tokenid, Principal.fromActor(this)) == false) {
 			return #err(#InvalidToken(tokenid));
 		};
@@ -281,6 +315,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 		};
   };
   public shared(msg) func settle(tokenid : TokenIdentifier) : async Result.Result<(), CommonError> {
+    canistergeekMonitor.collectMetrics();
 		if (ExtCore.TokenIdentifier.isPrincipal(tokenid, Principal.fromActor(this)) == false) {
 			return #err(#InvalidToken(tokenid));
 		};
@@ -346,6 +381,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     };
   };
   public shared(msg) func list(request: ListRequest) : async Result.Result<(), CommonError> {
+    canistergeekMonitor.collectMetrics();
 		if (ExtCore.TokenIdentifier.isPrincipal(request.token, Principal.fromActor(this)) == false) {
 			return #err(#InvalidToken(request.token));
 		};
@@ -396,6 +432,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
 
   public shared(msg) func disburse() : async () {
+    canistergeekMonitor.collectMetrics();
     var _cont : Bool = true;
     while(_cont){
       var last = List.pop(_disbursements);
@@ -424,6 +461,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
 	public shared(msg) func setMinter(minter : Principal) : async () {
 		assert(msg.caller == _minter);
+    canistergeekMonitor.collectMetrics();
 		_minter := minter;
 	};
 
@@ -445,11 +483,13 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
   public shared(msg) func endAuction() {
     assert(msg.caller == _minter and auctionEnded == false);
+    canistergeekMonitor.collectMetrics();
     auctionEnded := true;
   };
 
   public shared(msg) func shuffleAssets() :async () {
     assert(msg.caller == _minter and isShuffled == false);
+    canistergeekMonitor.collectMetrics();
     // get a random seed from the IC
     let seed: Blob = await Random.blob();
     // use that seed to generate a truly random number
@@ -486,6 +526,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
 
 	public shared(msg) func streamAsset(id : Nat, isThumb : Bool, payload : Blob) : async () {
     assert(msg.caller == _minter);
+    canistergeekMonitor.collectMetrics();
     var tassets : [var Asset]  = Array.thaw<Asset>(_assets);
     var asset : Asset = tassets[id];
     if (isThumb) {
@@ -519,6 +560,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   public shared(msg) func updateThumb(name : Text, file : File) : async ?Nat {
     assert(msg.caller == _minter);
+    canistergeekMonitor.collectMetrics();
     var i : Nat = 0;
     for(a in _assets.vals()){
       if (a.name == name) {
@@ -540,6 +582,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   public shared(msg) func addAsset(asset : Asset) : async Nat {
     assert(msg.caller == _minter);
+    canistergeekMonitor.collectMetrics();
     _assets := Array.append(_assets, [asset]);
     _assets.size() - 1;
   };
@@ -552,6 +595,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   // end custom
   public shared(msg) func initMint() : async () {
 		assert(msg.caller == _minter and _nextTokenId == 0);
+    canistergeekMonitor.collectMetrics();
     //Mint
     while(_nextTokenId < 2015) {
       _tokenMetadata.put(_nextTokenId, #nonfungible({
@@ -606,6 +650,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
 
   public shared(msg) func transfer(request: TransferRequest) : async TransferResponse {
+    canistergeekMonitor.collectMetrics();
     if (request.amount != 1) {
 			return #err(#Other("Must use amount of 1"));
 		};
@@ -831,6 +876,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     Iter.toArray(_payments.entries())
   };
   public shared(msg) func clearPayments(seller : Principal, payments : [SubAccount]) : async () {
+    canistergeekMonitor.collectMetrics();
     var removedPayments : [SubAccount] = [];
     for (p in payments.vals()){
       let response : ICPTs = await LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(seller, ?p)});
@@ -1208,6 +1254,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
     
   //Internal cycle management - good general case
   public func acceptCycles() : async () {
+    canistergeekMonitor.collectMetrics();
     let available = Cycles.available();
     let accepted = Cycles.accept(available);
     assert (accepted == available);
