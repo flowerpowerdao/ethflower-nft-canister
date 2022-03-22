@@ -160,8 +160,8 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   private stable var _nextSubAccount : Nat = 0;
   private var _disbursements : List.List<(TokenIndex, AccountIdentifier, SubAccount, Nat64)> = List.fromArray(_disbursementsState);
   private var salesFees : [(AccountIdentifier, Nat64)] = [
-    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 7500), //Royalty Fee 
-    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 1000), //Entrepot Fee 
+    ("64478e81211f72ab1ba2d6a0f87d5bb85f9e936c4d1d431fdf19e33c055d8ef8", 7500), //Royalty Fee 
+    ("c7e461041c0c5800a56b64bb7cefc247abc0bbbb99bd46ff71c64e92d9f5c2f9", 1000), //Entrepot Fee 
   ];
 
   /****************
@@ -189,7 +189,7 @@ shared ({ caller = init_minter}) actor class Canister() = this {
   };
   
   private func validateCaller(principal: Principal) : () {
-    assert( principal == Principal.fromText("ikywv-z7xvl-xavcg-ve6kg-dbbtx-wy3gy-qbtwp-7ylai-yl4lc-lwetg-kqe"))
+    assert( principal == Principal.fromText("ikywv-z7xvl-xavcg-ve6kg-dbbtx-wy3gy-qbtwp-7ylai-yl4lc-lwetg-kqe")) // canistergeek principal
   };
 
   // start custom
