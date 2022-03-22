@@ -4,14 +4,15 @@
 
 # TO-DOs
 
--   check all addresses and parameters in `deploy.zsh`
--   run `make deploy-production-ic-full`
--   check if all assets uploaded correctly by calling the canisters `getTokens`
--   run off chain backup script with mainnet canister id
--   run disburse script with mainnet canister id
+-   ~~check all addresses and parameters in `deploy.zsh`~~
+-   ~~run `make deploy-production-ic-full`~~
+-   ~~check if all assets uploaded correctly by calling the canisters `getTokens`~~
+-   ~~top canister up with cycles~~
+-   ~~add canister to tip jar~~
+-   ~~run off chain backup script with mainnet canister id~~
+-   ~~run disburse script with mainnet canister id~~
 -   call `endAuction` after auction ends
 -   call `shuffleAssets` 24 hours after `endAuction`
--   call `disburse` regualry to disburse payments
 
 ## quick deploy 🏃‍♀️
 
