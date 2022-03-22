@@ -8,7 +8,6 @@ mime="video/$fileextension"
 network=${1:-local}
 number_of_assets=${2:-10}
 mode=${3:-staging}
-mint=${4:-true}
 threshold="100000"
 asset_canister_url="https://cdfps-iyaaa-aaaae-qabta-cai.raw.ic0.app/"
 
@@ -59,7 +58,7 @@ else
 open "http://127.0.0.1:8000/?canisterId=$(dfx canister --network $network id $mode)&asset=0"
 fi
 
-# add the other 
+# add the other assets
 for i in {1..$number_of_assets}
 do
     echo "uploading asset $i"
@@ -161,12 +160,8 @@ echo "initiating cap ..."
 dfx canister --network $network call $mode initCap
 
 # init mint
-echo "minting: " $mint
-if [[ "$mint" == "true" ]]
-then
 echo "initiating mint ..."
 dfx canister --network $network call $mode initMint
-fi
 
 # check the asset that are linked to the tokens
 for i in {0..9}

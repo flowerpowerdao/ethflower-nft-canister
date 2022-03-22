@@ -5,8 +5,8 @@
 # TO-DOs
 
 -   check all addresses and parameters in `deploy.zsh`
--   run `make deploy-production`
--   check if all assets uploaded correctly
+-   run `make deploy-production-ic-full`
+-   check if all assets uploaded correctly by calling the canisters `getTokens`
 -   run off chain backup script
 -   call `endAuction` after auction ends
 -   call `shuffleAssets` 24 hours after `endAuction`
