@@ -11,7 +11,7 @@
 -   ~~add canister to tip jar~~
 -   ~~run off chain backup script with mainnet canister id~~
 -   ~~run disburse script with mainnet canister id~~
--   call `endAuction` after auction ends
+-   ~~call `endAuction` after auction ends~~
 -   call `shuffleAssets` 24 hours after `endAuction`
 
 ## quick deploy 🏃‍♀️
