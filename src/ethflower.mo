@@ -24,8 +24,8 @@ import Router "mo:cap/Router";
 import Types "mo:cap/Types";
 
 import AID "./toniq-labs/util/AccountIdentifier";
-import AssetTypes "Assets/Types";
-import Assets "Assets";
+import AssetTypes "CanisterAssets/Types";
+import Assets "CanisterAssets";
 import Buffer "./Buffer";
 import ExtAllowance "./toniq-labs/ext/Allowance";
 import ExtCommon "./toniq-labs/ext/Common";

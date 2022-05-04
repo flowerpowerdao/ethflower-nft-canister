@@ -1,4 +1,4 @@
-import Assets "../Assets";
+import Assets "../CanisterAssets";
 import Tokens "../Tokens";
 import Shuffle "../Shuffle";
 import Marketplace "../Marketplace";
