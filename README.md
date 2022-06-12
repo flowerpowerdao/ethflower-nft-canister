@@ -14,6 +14,11 @@
 -   ~~call `endAuction` after auction ends~~
 -   ~~call `shuffleAssets` 24 hours after `endAuction`~~
 
+## structure
+- the `main` contains the logic that is currently deployed on mainnet
+- the `development` branch is the one all the rewrite branches are merged into
+- the `local-development` branch can be used for local deployment to avoid accidentially deploying the canister to mainnet
+
 ## quick deploy 🏃‍♀️
 
 -   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy staging --mode reinstall`
