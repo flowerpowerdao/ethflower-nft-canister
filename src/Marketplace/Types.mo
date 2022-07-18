@@ -1,9 +1,10 @@
 import Time "mo:base/Time";
 
+import Cap "mo:cap/Cap";
+
 import ExtCore "../toniq-labs/Ext/Core";
 import TokenTypes "../Tokens/Types";
 import Tokens "../Tokens";
-import Cap "mo:cap/Cap";
 
 module {
   public type AccountIdentifier = ExtCore.AccountIdentifier;
@@ -11,6 +12,8 @@ module {
   public type Time = Time.Time;
 
   public type TokenIdentifier = TokenTypes.TokenIdentifier;
+
+  public type Metadata = TokenTypes.Metadata;
 
   public type SubAccount = ExtCore.SubAccount;
 
@@ -52,10 +55,19 @@ module {
   public type State = {
     _transactionsState : [Transaction];
     _tokenSettlementState : [(TokenIndex, Settlement)];
+    _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)];
     _paymentsState : [(Principal, [SubAccount])];
     _tokenListingState : [(TokenIndex, Listing)];
+  };
+
+  public type Dependencies = {
     _Cap : Cap.Cap;
-    _Tokens : Tokens.Tokens;
-  }
+    _Tokens : Tokens.Factory;
+  };
+
+  public type Constants = {
+    ESCROWDELAY: Time.Time;
+    LEDGER_CANISTER : actor { account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs };
+  };
 
 }

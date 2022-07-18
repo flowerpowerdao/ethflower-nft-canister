@@ -6,25 +6,34 @@ import Types "Types";
 import Utils "../Utils";
 
 module {
-  public class Shuffle (state : Types.State) {
-    private var shuffled = state.shuffled;
+  public class Shuffle (state : Types.State, deps : Types.Dependencies) {
 
-    public func toStable () : Bool {
-        shuffled
+    /*********
+    * STATE *
+    *********/
+
+    private var _isShuffled: Bool = state._isShuffledState;
+
+    public func toStable () : {
+      _isShuffledState : Bool;
+    } {
+      return {
+        _isShuffledState = _isShuffled;
+      }
     };
 
     public func isShuffled() : Bool {
-        shuffled
+        _isShuffled
     };
 
-    public func shuffleAssets(caller : Principal) :async () {
-      assert(caller == state.minter and shuffled == false);
+    public shared(msg) func shuffleAssets() : async () {
+      assert(msg.caller == deps._Tokens.getMinter() and _isShuffled == false);
       // get a random seed from the IC
       let seed: Blob = await Random.blob();
       // use that seed to generate a truly random number
       var randomNumber : Nat8 = Random.byteFrom(seed);
       // get the number of available assets
-      var currentIndex : Nat = state._Assets.size();
+      var currentIndex : Nat = deps._Assets.size();
 
       // shuffle the assets array using the random beacon
       while (currentIndex != 1){
@@ -40,12 +49,11 @@ module {
           randomIndex += 1;
         };
         assert((randomIndex != 0) and (currentIndex != 0));
-        let temporaryValue = state._Assets.get(currentIndex);
-        state._Assets.put(currentIndex, state._Assets.get(randomIndex));
-        state._Assets.put(randomIndex,temporaryValue);
+        let temporaryValue = deps._Assets.get(currentIndex);
+        deps._Assets.put(currentIndex, deps._Assets.get(randomIndex));
+        deps._Assets.put(randomIndex,temporaryValue);
       };
-
-      shuffled := true;
+      _isShuffled := true;
     };
 
   };

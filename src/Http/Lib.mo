@@ -1,5 +1,6 @@
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
+import Cycles "mo:base/ExperimentalCycles";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Nat32 "mo:base/Nat32";
@@ -7,9 +8,8 @@ import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
-import Cycles "mo:base/ExperimentalCycles";
 
-import AssetTypes "../Assets/Types";
+import AssetTypes "../CanisterAssets/Types";
 import Buffer "../Buffer";
 import ExtCore "../toniq-labs/ext/Core";
 import MarketplaceTypes "../Marketplace/Types";
@@ -18,7 +18,7 @@ import Utils "../Utils";
 
 module {
 
-  public class HttpHandler(this: actor { }, state: Types.State) {
+  public class HttpHandler(this: Principal, state: Types.State) {
     
     /*********
     * STATE *
@@ -32,7 +32,7 @@ module {
 
     private func _processFile(tokenid : ExtCore.TokenIdentifier, file : AssetTypes.File) : Types.HttpResponse {
       // start custom
-      let self: Principal = Principal.fromActor(this);
+      let self: Principal = this;
       let canisterId: Text = Principal.toText(self);
       let canister = actor (canisterId) : actor { http_request_streaming_callback : shared () -> async () };
       // end custom
@@ -98,7 +98,7 @@ module {
       };
     };
 
-    public func http_request_streaming_callbackrequest(request : Types.HttpRequest) : async Types.HttpResponse {
+    public func http_request_streaming_callbackrequest(request : Types.HttpRequest) : Types.HttpResponse {
       let path = Iter.toArray(Text.tokens(request.url, #text("/")));
       switch(_getParam(request.url, "tokenid")) {
         case (?tokenid) {
@@ -234,7 +234,7 @@ module {
       };
       
       //Just show index
-      var soldValue : Nat = Nat64.toNat(Array.foldLeft<MarketplaceTypes.Transaction, Nat64>(state._Marketplace.getTransactions().toArray(), 0, func (b : Nat64, a : Transaction) : Nat64 { b + a.price }));
+      var soldValue : Nat = Nat64.toNat(Array.foldLeft<MarketplaceTypes.Transaction, Nat64>(state._Marketplace.getTransactions().toArray(), 0, func (b : Nat64, a : MarketplaceTypes.Transaction) : Nat64 { b + a.price }));
       var avg : Nat = if (state._Marketplace.transactionsSize() > 0) {
         soldValue/state._Marketplace.transactionsSize();
       } else {
@@ -247,15 +247,19 @@ module {
           "BTC Flower \n" #
           "---\n" #
           "Cycle Balance:                            ~" # debug_show (Cycles.balance()/1000000000000) # "T\n" #
-          "Minted NFTs:                              " # debug_show (_nextTokenId) # "\n" #
-          "Marketplace Listings:                     " # debug_show (_tokenListing.size()) # "\n" #
-          "Sold via Marketplace:                     " # debug_show (_transactions.size()) # "\n" #
+          "Minted NFTs:                              " # debug_show (state._Tokens.getNextTokenId()) # "\n" #
+          "Marketplace Listings:                     " # debug_show (state._Marketplace.tokenListingSize()) # "\n" #
+          "Sold via Marketplace:                     " # debug_show (state._Marketplace.transactionsSize()) # "\n" #
           "Sold via Marketplace in ICP:              " # _displayICP(soldValue) # "\n" #
           "Average Price ICP Via Marketplace:        " # _displayICP(avg) # "\n" #
-          "Admin:                                    " # debug_show (_minter) # "\n"
+          "Admin:                                    " # debug_show (state._Tokens.getMinter()) # "\n"
         );
         streaming_strategy = null;
       };
+    };
+
+    private func _displayICP(amt : Nat) : Text {
+      debug_show(amt/100000000) # "." # debug_show ((amt%100000000)/1000000) # " ICP";
     };
 
     private func _getParam(url : Text, param : Text) : ?Text {

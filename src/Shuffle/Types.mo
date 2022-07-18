@@ -1,9 +1,13 @@
-import Assets "../Assets";
+import Assets "../CanisterAssets";
+import Tokens "../Tokens";
 
 module {
     public type State = {
-        shuffled : Bool;
+        _isShuffledState : Bool;
+    };
+
+    public type Dependencies = {
         _Assets : Assets.Assets;
-        minter : Principal;
-    }
+        _Tokens : Tokens.Factory;
+    };
 }

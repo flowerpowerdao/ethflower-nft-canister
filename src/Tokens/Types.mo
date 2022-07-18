@@ -12,6 +12,18 @@ module {
   
   public type AccountIdentifier = ExtCore.AccountIdentifier;
 
+  public type Balance = ExtCore.Balance;
+  
+  public type BalanceRequest = ExtCore.BalanceRequest;
+  
+  public type BalanceResponse = ExtCore.BalanceResponse;
+
+  public type Listing = {
+    seller : Principal;
+    price : Nat64;
+    locked : ?Time;
+  };
+
   public type Time = Time.Time;
 
   public type SubAccount = ExtCore.SubAccount;
@@ -24,5 +36,8 @@ module {
     _tokenMetadataState : [(TokenIndex, Metadata)] ;
     _ownersState : [(AccountIdentifier, [TokenIndex])];
     _registryState : [(TokenIndex, AccountIdentifier)];
+    _nextTokenIdState : TokenIndex;
+    _minterState : Principal;
+    _supplyState : Balance;
   }
 }

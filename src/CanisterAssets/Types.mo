@@ -1,3 +1,5 @@
+import Tokens "../Tokens";
+
 module {
   public type File = {
     ctype : Text;//"image/jpeg"
@@ -12,5 +14,10 @@ module {
 
   public type State = {
     _assetsState : [Asset]; 
-  }
+  };
+
+  public type Dependencies = {
+    _Tokens : Tokens.Factory;
+  };
+
 }
