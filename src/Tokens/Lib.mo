@@ -1,11 +1,12 @@
-import Types "Types";
 import HashMap "mo:base/HashMap";
-import ExtCore "../toniq-labs/Ext/Core";
 import Iter "mo:base/Iter";
 import Principal "mo:base/Principal";
-import Buffer "../Buffer";
-import Utils "../Utils";
+
 import AID "../toniq-labs/util/AccountIdentifier";
+import Buffer "../Buffer";
+import ExtCore "../toniq-labs/Ext/Core";
+import Types "Types";
+import Utils "../Utils";
 
 module {
   public class Tokens(this : actor { }, state : Types.State) {
@@ -33,6 +34,10 @@ module {
         _registryState = Iter.toArray(_registry.entries());
       }
     };
+
+    /*******************
+    * INTERNAL METHODS *
+    *******************/
 
     public func getTokenDataFromIndex(tokenind: Nat32) : ?Blob {
       switch (_tokenMetadata.get(tokenind)) {
@@ -66,6 +71,44 @@ module {
         };
       };
       return null;
+    };
+
+    public func transferTokenToUser(tindex : Types.TokenIndex, receiver : Types.AccountIdentifier) : () {
+      let owner : ?Types.AccountIdentifier = _getBearer(tindex); // who owns the token (no one if mint)
+      _registry.put(tindex, receiver); // transfer the token to the new owner
+      switch(owner){
+        case (?o) removeFromUserTokens(tindex, o);
+        case (_) {};
+      };
+      addToUserTokens(tindex, receiver);
+    };
+    
+    public func removeTokenFromUser(tindex : Types.TokenIndex) : () {
+      let owner : ?Types.AccountIdentifier = _getBearer(tindex);
+      _registry.delete(tindex);
+      switch(owner){
+        case (?o) removeFromUserTokens(tindex, o);
+        case (_) {};
+      };
+    };
+
+    public func removeFromUserTokens(tindex : Types.TokenIndex, owner : Types.AccountIdentifier) : () {
+      switch(_owners.get(owner)) {
+        case(?ownersTokens) _owners.put(owner, ownersTokens.filter(func (a : Types.TokenIndex) : Bool { (a != tindex) }));
+        case(_) ();
+      };
+    };
+
+    public func addToUserTokens(tindex : Types.TokenIndex, receiver : Types.AccountIdentifier) : () {
+      let ownersTokensNew : Buffer.Buffer<Types.TokenIndex> = switch(_owners.get(receiver)) {
+        case(?ownersTokens) {ownersTokens.add(tindex); ownersTokens};
+        case(_) Utils.bufferFromArray([tindex]);
+      };
+      _owners.put(receiver, ownersTokensNew);
+    };
+
+    func _getBearer(tindex : Types.TokenIndex) : ?Types.AccountIdentifier {
+      _registry.get(tindex);
     };
   }
 }

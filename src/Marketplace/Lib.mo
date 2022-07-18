@@ -94,7 +94,7 @@ module {
                         caller = msg.caller;
                 };
                 ignore state._Cap.insert(event);
-                _transferTokenToUser(token, settlement.buyer);
+                state._Tokens.transferTokenToUser(token, settlement.buyer);
                 _transactions.add({
                   token = tokenid;
                   seller = settlement.seller;
@@ -115,49 +115,5 @@ module {
         case(_) return #err(#Other("Nothing to settle"));
       };
     };
-
-
-    /*******************
-    * PRIVATE METHODS *
-    *******************/
-
-    func _transferTokenToUser(tindex : Types.TokenIndex, receiver : Types.AccountIdentifier) : () {
-      let owner : ?Types.AccountIdentifier = _getBearer(tindex); // who owns the token (no one if mint)
-      state._Tokens._registry.put(tindex, receiver); // transfer the token to the new owner
-      switch(owner){
-        case (?o) _removeFromUserTokens(tindex, o);
-        case (_) {};
-      };
-      _addToUserTokens(tindex, receiver);
-    };
-    
-    func _removeTokenFromUser(tindex : Types.TokenIndex) : () {
-      let owner : ?Types.AccountIdentifier = _getBearer(tindex);
-      _registry.delete(tindex);
-      switch(owner){
-        case (?o) _removeFromUserTokens(tindex, o);
-        case (_) {};
-      };
-    };
-
-    func _removeFromUserTokens(tindex : Types.TokenIndex, owner : Types.AccountIdentifier) : () {
-      switch(_owners.get(owner)) {
-        case(?ownersTokens) _owners.put(owner, ownersTokens.filter(func (a : Types.TokenIndex) : Bool { (a != tindex) }));
-        case(_) ();
-      };
-    };
-
-    func _addToUserTokens(tindex : Types.TokenIndex, receiver : Types.AccountIdentifier) : () {
-      let ownersTokensNew : Buffer.Buffer<Types.TokenIndex> = switch(_owners.get(receiver)) {
-        case(?ownersTokens) {ownersTokens.add(tindex); ownersTokens};
-        case(_) Utils.bufferFromArray([tindex]);
-      };
-      _owners.put(receiver, ownersTokensNew);
-    };
-
-    func _getBearer(tindex : Types.TokenIndex) : ?Types.AccountIdentifier {
-      _registry.get(tindex);
-    };
-
   }
 }
