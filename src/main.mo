@@ -82,6 +82,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   private stable var _tokensForSaleState : [TokenTypes.TokenIndex] = [];
   private stable var _whitelistState : [AccountIdentifier] = [];
   private stable var _soldIcpState : Nat64 = 0;
+  private stable var _disbursementsState : [(TokenTypes.TokenIndex, AccountIdentifier, SubAccount, Nat64)] = [];
+  private stable var _nextSubAccountState : Nat = 0;
 
  // Marketplace
 	private stable var _transactionsState : [MarketplaceTypes.Transaction] = [];
@@ -119,6 +121,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _tokensForSaleState; 
       _whitelistState;
       _soldIcpState;
+      _disbursementsState;
+      _nextSubAccountState;
     } = _Sale.toStable();
   
    // Marketplace
@@ -152,6 +156,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     _tokensForSaleState := [];
     _whitelistState := [];
     _soldIcpState := 0;
+    _disbursementsState := [];
+    _nextSubAccountState := 0;
 
    // Marketplace
     _transactionsState := [];
@@ -309,6 +315,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _failedSalesState;
       _salesSettlementsState;
       _soldIcpState;
+      _disbursementsState;
+      _nextSubAccountState;
     },
     {
       _Cap;

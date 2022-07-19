@@ -1,5 +1,6 @@
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
 import Nat64 "mo:base/Nat64";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
@@ -26,6 +27,8 @@ module {
     private var _tokensForSale: Buffer.Buffer<Types.TokenIndex> = Utils.bufferFromArray<Types.TokenIndex>(state._tokensForSaleState);
     private var _whitelist : Buffer.Buffer<Types.AccountIdentifier> = Utils.bufferFromArray<Types.AccountIdentifier>(state._whitelistState);
     private var _soldIcp : Nat64 = state._soldIcpState;
+    private var _disbursements : List.List<(Types.TokenIndex, Types.AccountIdentifier, Types.SubAccount, Nat64)> = List.fromArray(state._disbursementsState);
+    private var _nextSubAccount : Nat  = state._nextSubAccountState;
 
     public func toStable() : {
       _saleTransactionsState : [Types.SaleTransaction];
@@ -34,6 +37,8 @@ module {
       _tokensForSaleState : [Types.TokenIndex];
       _whitelistState : [Types.AccountIdentifier];
       _soldIcpState : Nat64;
+      _disbursementsState : [(Types.TokenIndex, Types.AccountIdentifier, Types.SubAccount, Nat64)];
+      _nextSubAccountState : Nat
     } {
       return {
         _saleTransactionsState = _saleTransactions.toArray();
@@ -42,6 +47,8 @@ module {
         _tokensForSaleState = _tokensForSale.toArray();
         _whitelistState = _whitelist.toArray();
         _soldIcpState = _soldIcp;
+        _disbursementsState = List.toArray(_disbursements);
+        _nextSubAccountState = _nextSubAccount;
       }
     };
 
@@ -54,6 +61,10 @@ module {
     let whitelistprice : Nat64 = 300000000;
     let saleStart : Time.Time = 1642906800000000000;
     let whitelistEnd : Time.Time = 1642950000000000000;
+    let salesFees : [(Types.AccountIdentifier, Nat64)] = [
+    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 7500), //Royalty Fee 
+    ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 1000), //Entrepot Fee 
+  ];
 
 /********************
 * PUBLIC INTERFACE *
