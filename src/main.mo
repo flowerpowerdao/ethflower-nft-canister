@@ -232,7 +232,58 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
 
-//Sale 
+ // updates
+  public shared(msg) func lock(tokenid : MarketplaceTypes.TokenIdentifier, price : Nat64, address : MarketplaceTypes.AccountIdentifier, subaccount : MarketplaceTypes.SubAccount) : async Result.Result<MarketplaceTypes.AccountIdentifier, MarketplaceTypes.CommonError> {
+    await _Marketplace.lock(msg.caller, tokenid, price, address, subaccount);
+  };
+    
+  public shared(msg) func settle(tokenid : MarketplaceTypes.TokenIdentifier) : async Result.Result<(), MarketplaceTypes.CommonError> {
+   await _Marketplace.settle(msg.caller, tokenid);
+  };
+    
+  public shared(msg) func list(request: MarketplaceTypes.ListRequest) : async Result.Result<(), MarketplaceTypes.CommonError> {
+    await _Marketplace.list(msg.caller, request);
+  };
+    
+  public shared(msg) func clearPayments(seller : Principal, payments : [MarketplaceTypes.SubAccount]) : async () {
+    await _Marketplace.clearPayments(seller, payments);
+  };
+    
+ // queriues
+  public query func details(token : MarketplaceTypes.TokenIdentifier) : async Result.Result<(MarketplaceTypes.AccountIdentifier, ?MarketplaceTypes.Listing), MarketplaceTypes.CommonError> {
+    _Marketplace.details(token);
+  };
+    
+  public query func transactions() : async [MarketplaceTypes.Transaction] {
+    _Marketplace.transactions();
+  };
+    
+  public query func settlements() : async [(MarketplaceTypes.TokenIndex, MarketplaceTypes.AccountIdentifier, Nat64)] {
+    _Marketplace.settlements();
+  };
+    
+  public query(msg) func payments() : async ?[MarketplaceTypes.SubAccount] {
+    _Marketplace.payments(msg.caller);
+  };
+
+  public query func listings() : async [(MarketplaceTypes.TokenIndex, MarketplaceTypes.Listing, MarketplaceTypes.Metadata)] {
+    _Marketplace.listings();
+  };
+    
+  public query(msg) func allSettlements() : async [(MarketplaceTypes.TokenIndex, MarketplaceTypes.Settlement)] {
+    _Marketplace.allSettlements();
+  };
+    
+  public query(msg) func allPayments() : async [(Principal, [MarketplaceTypes.SubAccount])] {
+    _Marketplace.allPayments();
+  };
+    
+  public query func stats() : async (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
+    _Marketplace.stats();
+  };
+
+
+ //Sale 
   let _Sale = Sale.Factory(
     cid,
     {

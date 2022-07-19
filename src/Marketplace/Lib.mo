@@ -57,7 +57,7 @@ module {
     * PUBLIC INTERFACE *
     ********************/
 
-    public shared(msg) func lock(tokenid : Types.TokenIdentifier, price : Nat64, address : Types.AccountIdentifier, subaccount : Types.SubAccount) : async Result.Result<Types.AccountIdentifier, Types.CommonError> {
+    public func lock(caller : Principal, tokenid : Types.TokenIdentifier, price : Nat64, address : Types.AccountIdentifier, subaccount : Types.SubAccount) : async Result.Result<Types.AccountIdentifier, Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(tokenid, this) == false) {
         return #err(#InvalidToken(tokenid));
       };
@@ -97,7 +97,7 @@ module {
             });
             switch(_tokenSettlement.get(token)) {
               case(?settlement){
-                let resp : Result.Result<(), Types.CommonError> = await settle(tokenid);
+                let resp : Result.Result<(), Types.CommonError> = await settle(caller, tokenid);
                 switch(resp) {
                   case(#ok) {
                     return #err(#Other("Listing as sold"));
@@ -126,7 +126,7 @@ module {
       };
     };
 
-    public shared(msg) func settle(tokenid : Types.TokenIdentifier) : async Result.Result<(), Types.CommonError> {
+    public func settle(caller : Principal, tokenid : Types.TokenIdentifier) : async Result.Result<(), Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(tokenid, this) == false) {
         return #err(#InvalidToken(tokenid));
       };
@@ -152,7 +152,7 @@ module {
                           ("price", #U64(settlement.price)),
                           ("token_id", #Text(tokenid))
                         ];
-                        caller = msg.caller;
+                        caller;
                 };
                 ignore deps._Cap.insert(event);
                 deps._Tokens.transferTokenToUser(token, settlement.buyer);
@@ -177,7 +177,7 @@ module {
       };
     };
 
-    public shared(msg) func list(request: Types.ListRequest) : async Result.Result<(), Types.CommonError> {
+    public func list(caller : Principal, request : Types.ListRequest) : async Result.Result<(), Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(request.token, this) == false) {
         return #err(#InvalidToken(request.token));
       };
@@ -187,7 +187,7 @@ module {
       };
       switch(_tokenSettlement.get(token)) {
         case(?settlement){
-          let resp : Result.Result<(), Types.CommonError> = await settle(request.token);
+          let resp : Result.Result<(), Types.CommonError> = await settle(caller, request.token);
           switch(resp) {
             case(#ok) return #err(#Other("Listing as sold"));
             case(#err _) {};
@@ -195,7 +195,7 @@ module {
         };
         case(_){};
       };
-      let owner = AID.fromPrincipal(msg.caller, request.from_subaccount);
+      let owner = AID.fromPrincipal(caller, request.from_subaccount);
       switch (deps._Tokens.getOwnerFromRegistry(token)) {
         case (?token_owner) {
           if(AID.equal(owner, token_owner) == false) {
@@ -204,7 +204,7 @@ module {
           switch(request.price) {
             case(?price) {
               _tokenListing.put(token, {
-                seller = msg.caller;
+                seller = caller;
                 price = price;
                 locked = null;
               });
@@ -224,71 +224,7 @@ module {
       };
     };
 
-    public query func details(token : Types.TokenIdentifier) : async Result.Result<(Types.AccountIdentifier, ?Types.Listing), Types.CommonError> {
-      if (ExtCore.TokenIdentifier.isPrincipal(token, this) == false) {
-        return #err(#InvalidToken(token));
-      };
-      let tokenind = ExtCore.TokenIdentifier.getIndex(token);
-      switch (deps._Tokens.getBearer(tokenind)) {
-        case (?token_owner) {
-          return #ok((token_owner, _tokenListing.get(tokenind)));
-        };
-        case (_) {
-          return #err(#InvalidToken(token));
-        };
-      };
-    };
-
-    public query func transactions() : async [Types.Transaction] {
-      _transactions.toArray();
-    };
-
-    public query func settlements() : async [(Types.TokenIndex, Types.AccountIdentifier, Nat64)] {
-      //Lock to admin?
-      var result : Buffer.Buffer<(Types.TokenIndex, Types.AccountIdentifier, Nat64)> = Buffer.Buffer(0);
-      for((token, listing) in _tokenListing.entries()) {
-        if(_isLocked(token)){
-          switch(_tokenSettlement.get(token)) {
-            case(?settlement) {
-              result.add((token, AID.fromPrincipal(settlement.seller, ?settlement.subaccount), settlement.price));
-            };
-            case(_) {};
-          };
-        };
-      };
-      result.toArray();
-    };
-
-    public query(msg) func payments() : async ?[Types.SubAccount] {
-      let buffer = _payments.get(msg.caller);
-      switch (buffer) {
-        case (?buffer) {?buffer.toArray()};
-        case (_) {null};
-      }
-    };
-
-    public query func listings() : async [(Types.TokenIndex, Types.Listing, Types.Metadata)] {
-      var results : Buffer.Buffer<(Types.TokenIndex, Types.Listing, Types.Metadata)> = Buffer.Buffer(0);
-      for(a in _tokenListing.entries()) {
-        results.add((a.0, a.1, #nonfungible({ metadata = null })));
-      };
-      results.toArray();
-    };
-
-    public query(msg) func allSettlements() : async [(Types.TokenIndex, Types.Settlement)] {
-      Iter.toArray(_tokenSettlement.entries())
-    };
-
-    public query(msg) func allPayments() : async [(Principal, [Types.SubAccount])] {
-      let transformedPayments : Iter.Iter<(Principal, [Types.SubAccount])> = Iter.map<(Principal, Buffer.Buffer<Types.SubAccount>), (Principal, [Types.SubAccount])>(
-        _payments.entries(), 
-        func (payment) {
-          return (payment.0, payment.1.toArray());
-      });
-      Iter.toArray(transformedPayments)
-    };
-
-    public shared(msg) func clearPayments(seller : Principal, payments : [Types.SubAccount]) : async () {
+    public func clearPayments(seller : Principal, payments : [Types.SubAccount]) : async () {
       let removedPayments : Buffer.Buffer<Types.SubAccount> = Buffer.Buffer(0);
       for (p in payments.vals()){
         let response : Types.ICPTs = await consts.LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(seller, ?p)});
@@ -312,7 +248,71 @@ module {
       };
     };
 
-    public query func stats() : async (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
+    public func details(token : Types.TokenIdentifier) : Result.Result<(Types.AccountIdentifier, ?Types.Listing), Types.CommonError> {
+      if (ExtCore.TokenIdentifier.isPrincipal(token, this) == false) {
+        return #err(#InvalidToken(token));
+      };
+      let tokenind = ExtCore.TokenIdentifier.getIndex(token);
+      switch (deps._Tokens.getBearer(tokenind)) {
+        case (?token_owner) {
+          return #ok((token_owner, _tokenListing.get(tokenind)));
+        };
+        case (_) {
+          return #err(#InvalidToken(token));
+        };
+      };
+    };
+
+    public func transactions() : [Types.Transaction] {
+      _transactions.toArray();
+    };
+
+    public func settlements() : [(Types.TokenIndex, Types.AccountIdentifier, Nat64)] {
+      //Lock to admin?
+      var result : Buffer.Buffer<(Types.TokenIndex, Types.AccountIdentifier, Nat64)> = Buffer.Buffer(0);
+      for((token, listing) in _tokenListing.entries()) {
+        if(_isLocked(token)){
+          switch(_tokenSettlement.get(token)) {
+            case(?settlement) {
+              result.add((token, AID.fromPrincipal(settlement.seller, ?settlement.subaccount), settlement.price));
+            };
+            case(_) {};
+          };
+        };
+      };
+      result.toArray();
+    };
+
+    public func payments(caller : Principal) : ?[Types.SubAccount] {
+      let buffer = _payments.get(caller);
+      switch (buffer) {
+        case (?buffer) {?buffer.toArray()};
+        case (_) {null};
+      }
+    };
+
+    public func listings() : [(Types.TokenIndex, Types.Listing, Types.Metadata)] {
+      var results : Buffer.Buffer<(Types.TokenIndex, Types.Listing, Types.Metadata)> = Buffer.Buffer(0);
+      for(a in _tokenListing.entries()) {
+        results.add((a.0, a.1, #nonfungible({ metadata = null })));
+      };
+      results.toArray();
+    };
+
+    public func allSettlements() : [(Types.TokenIndex, Types.Settlement)] {
+      Iter.toArray(_tokenSettlement.entries())
+    };
+
+    public func allPayments() : [(Principal, [Types.SubAccount])] {
+      let transformedPayments : Iter.Iter<(Principal, [Types.SubAccount])> = Iter.map<(Principal, Buffer.Buffer<Types.SubAccount>), (Principal, [Types.SubAccount])>(
+        _payments.entries(), 
+        func (payment) {
+          return (payment.0, payment.1.toArray());
+      });
+      Iter.toArray(transformedPayments)
+    };
+
+    public func stats() : (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
       var res : (Nat64, Nat64, Nat64) = Array.foldLeft<Types.Transaction, (Nat64, Nat64, Nat64)>(_transactions.toArray(), (0,0,0), func (b : (Nat64, Nat64, Nat64), a : Types.Transaction) : (Nat64, Nat64, Nat64) {
         var total : Nat64 = b.0 + a.price;
         var high : Nat64 = b.1;
