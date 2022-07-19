@@ -186,7 +186,7 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     };
   };
   
-// Tokens
+ // Tokens
   let _Tokens = Tokens.Factory(
     cid,
     {
@@ -212,7 +212,7 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   };
 
 
-// Marketplace
+ // Marketplace
   let _Marketplace = Marketplace.Factory(
     cid,
     {
@@ -256,14 +256,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       LEDGER_CANISTER;
     }
   );
-  
 
-  
-
-/**********
-* ASSETS *
-**********/
-
+ // Assets
   let _Assets = Assets.Factory(
     {
       _assetsState;
@@ -273,6 +267,19 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _Tokens
     }
   );
+
+  public shared(msg) func streamAsset(id : Nat, isThumb : Bool, payload : Blob) : async () {
+    _Assets.streamAsset(msg.caller, id, isThumb, payload);
+  };
+    
+  public shared(msg) func updateThumb(name : Text, file : AssetsTypes.File) : async ?Nat {
+    _Assets.updateThumb(msg.caller, name, file);
+  };
+
+  public shared(msg) func addAsset(asset : AssetsTypes.Asset) : async Nat {
+    _Assets.addAsset(msg.caller, asset);
+  };
+
   
 /***********
 * SHUFFLE *

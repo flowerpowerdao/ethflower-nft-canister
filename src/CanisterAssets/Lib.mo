@@ -30,8 +30,8 @@ module {
     * PUBLIC INTERFACE *
     ********************/
 
-    public shared(msg) func streamAsset(id : Nat, isThumb : Bool, payload : Blob) : async () {
-      assert(msg.caller == deps._Tokens.getMinter());
+    public func streamAsset(caller: Principal, id : Nat, isThumb : Bool, payload : Blob) : () {
+      assert(caller == deps._Tokens.getMinter());
       var asset : Types.Asset = _assets.get(id);
       if (isThumb) {
         switch(asset.thumbnail) {
@@ -62,8 +62,8 @@ module {
       _assets.put(id, asset);
     };
 
-    public shared(msg) func updateThumb(name : Text, file : Types.File) : async ?Nat {
-      assert(msg.caller == deps._Tokens.getMinter());
+    public func updateThumb(caller : Principal, name : Text, file : Types.File) : ?Nat {
+      assert(caller == deps._Tokens.getMinter());
       var i : Nat = 0;
       for(a in _assets.vals()){
         if (a.name == name) {
@@ -82,8 +82,8 @@ module {
       return null;
     };
 
-    public shared(msg) func addAsset(asset : Types.Asset) : async Nat {
-      assert(msg.caller == deps._Tokens.getMinter());
+    public func addAsset(caller : Principal, asset : Types.Asset) : Nat {
+      assert(caller == deps._Tokens.getMinter());
       _assets.add(asset);
       _assets.size() - 1;
     };
