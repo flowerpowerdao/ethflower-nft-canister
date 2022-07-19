@@ -28,6 +28,7 @@ import Assets "CanisterAssets";
 import AssetsTypes "CanisterAssets/Types";
 import Buffer "./Buffer";
 import EXT "Ext";
+import EXTTypes "Ext/Types";
 import ExtAllowance "./toniq-labs/ext/Allowance";
 import ExtCommon "./toniq-labs/ext/Common";
 import ExtCore "./toniq-labs/ext/Core";
@@ -232,7 +233,7 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
 
- // updates
+  // updates
   public shared(msg) func lock(tokenid : MarketplaceTypes.TokenIdentifier, price : Nat64, address : MarketplaceTypes.AccountIdentifier, subaccount : MarketplaceTypes.SubAccount) : async Result.Result<MarketplaceTypes.AccountIdentifier, MarketplaceTypes.CommonError> {
     await _Marketplace.lock(msg.caller, tokenid, price, address, subaccount);
   };
@@ -249,7 +250,7 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     await _Marketplace.clearPayments(seller, payments);
   };
     
- // queriues
+  // queriues
   public query func details(token : MarketplaceTypes.TokenIdentifier) : async Result.Result<(MarketplaceTypes.AccountIdentifier, ?MarketplaceTypes.Listing), MarketplaceTypes.CommonError> {
     _Marketplace.details(token);
   };
@@ -331,6 +332,48 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     _Assets.addAsset(msg.caller, asset);
   };
 
+ // EXT
+  let _EXT = EXT.Factory(
+    cid,
+    {
+      _Tokens;
+      _Assets;
+      _Marketplace;
+    }
+  );
+
+
+  public query func getMinter() : async Principal {
+    _EXT.getMinter();
+  };
+
+  public query func extensions() : async [EXTTypes.Extension] {
+    _EXT.extensions();
+  };
+    
+  public query func supply() : async Result.Result<EXTTypes.Balance, EXTTypes.CommonError> {
+    _EXT.supply();
+  };
+    
+  public query func getRegistry() : async [(EXTTypes.TokenIndex, EXTTypes.AccountIdentifier)] {
+    _EXT.getRegistry();
+  };
+
+  public query func getTokens() : async [(EXTTypes.TokenIndex, Text)] {
+    _EXT.getTokens();
+  };
+
+  public query func tokens(aid : EXTTypes.AccountIdentifier) : async Result.Result<[EXTTypes.TokenIndex], EXTTypes.CommonError> {
+    _EXT.tokens(aid);
+  };
+    
+  public query func tokens_ext(aid : EXTTypes.AccountIdentifier) : async Result.Result<[(EXTTypes.TokenIndex, ?MarketplaceTypes.Listing, ?Blob)], EXTTypes.CommonError> {
+    _EXT.tokens_ext(aid);
+  };
+
+  public query func metadata(token : EXTTypes.TokenIdentifier) : async Result.Result<EXTTypes.Metadata, EXTTypes.CommonError> {
+    _EXT.metadata(token);
+  };
   
 /***********
 * SHUFFLE *

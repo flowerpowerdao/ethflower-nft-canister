@@ -11,26 +11,34 @@ import Types "Types";
 module {
   public class Factory(this : Principal, deps : Types.Dependencies) {
 
+/*************
+* CONSTANTS *
+*************/
+
     private let EXTENSIONS : [Types.Extension] = ["@ext/common", "@ext/nonfungible"];
 
-    public query func getMinter() : async Principal {
+/********************
+* PUBLIC INTERFACE *
+********************/
+
+    public func getMinter() : Principal {
       deps._Tokens.getMinter();
     };
 
-    public query func extensions() : async [Types.Extension] {
+    public func extensions() : [Types.Extension] {
       EXTENSIONS;
     };
 
-    public query func supply() : async Result.Result<Types.Balance, Types.CommonError> {
+    public func supply() : Result.Result<Types.Balance, Types.CommonError> {
       #ok(deps._Tokens.getSupply());
     };
 
-    public query func getRegistry() : async [(Types.TokenIndex, Types.AccountIdentifier)] {
+    public func getRegistry() : [(Types.TokenIndex, Types.AccountIdentifier)] {
       Iter.toArray(deps._Tokens.getRegistry().entries());
       
     };
 
-    public query func getTokens() : async [(Types.TokenIndex, Text)] {
+    public func getTokens() : [(Types.TokenIndex, Text)] {
       var resp : Buffer.Buffer<(Types.TokenIndex, Text)> = Buffer.Buffer(0);
       for(e in deps._Tokens.getTokenMetadata().entries()){
         let assetid = deps._Assets.get(Nat32.toNat(e.0)+1).name;
@@ -38,14 +46,15 @@ module {
       };
       resp.toArray();
     };
-    public query func tokens(aid : Types.AccountIdentifier) : async Result.Result<[Types.TokenIndex], Types.CommonError> {
+
+    public func tokens(aid : Types.AccountIdentifier) : Result.Result<[Types.TokenIndex], Types.CommonError> {
       switch(deps._Tokens.getTokensFromOwners(aid)) {
         case(?tokens) return #ok(tokens.toArray());
         case(_) return #err(#Other("No tokens"));
       };
     };
     
-    public query func tokens_ext(aid : Types.AccountIdentifier) : async Result.Result<[(Types.TokenIndex, ?MarketplaceTypes.Listing, ?Blob)], Types.CommonError> {
+    public func tokens_ext(aid : Types.AccountIdentifier) : Result.Result<[(Types.TokenIndex, ?MarketplaceTypes.Listing, ?Blob)], Types.CommonError> {
       switch(deps._Tokens.getTokensFromOwners(aid)) {
         case(?tokens) {
           var resp : Buffer.Buffer<(Types.TokenIndex, ?Types.Listing, ?Blob)> = Buffer.Buffer(0);
@@ -57,7 +66,8 @@ module {
         case(_) return #err(#Other("No tokens"));
       };
     };
-    public query func metadata(token : Types.TokenIdentifier) : async Result.Result<Types.Metadata, Types.CommonError> {
+
+    public func metadata(token : Types.TokenIdentifier) : Result.Result<Types.Metadata, Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(token, this) == false) {
         return #err(#InvalidToken(token));
       };
