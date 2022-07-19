@@ -375,9 +375,7 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     _EXT.metadata(token);
   };
   
-/***********
-* SHUFFLE *
-***********/
+ // Shuffle
 
   let _Shuffle = Shuffle.Shuffle(
     {
@@ -388,6 +386,10 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _Tokens;
     }
   );
+
+  public shared(msg) func shuffleAssets() : async () {
+    await _Shuffle.shuffleAssets(msg.caller);
+  };
 
 /********
 * HTTP *

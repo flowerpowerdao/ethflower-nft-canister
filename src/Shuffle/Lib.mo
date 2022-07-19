@@ -8,9 +8,9 @@ import Utils "../Utils";
 module {
   public class Shuffle (state : Types.State, deps : Types.Dependencies) {
 
-    /*********
-    * STATE *
-    *********/
+/*********
+* STATE *
+*********/
 
     private var _isShuffled: Bool = state._isShuffledState;
 
@@ -26,8 +26,12 @@ module {
         _isShuffled
     };
 
-    public shared(msg) func shuffleAssets() : async () {
-      assert(msg.caller == deps._Tokens.getMinter() and _isShuffled == false);
+/********************
+* PUBLIC INTERFACE *
+********************/
+
+    public func shuffleAssets(caller : Principal) : async () {
+      assert(caller == deps._Tokens.getMinter() and _isShuffled == false);
       // get a random seed from the IC
       let seed: Blob = await Random.blob();
       // use that seed to generate a truly random number
