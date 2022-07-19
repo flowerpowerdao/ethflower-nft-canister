@@ -25,7 +25,7 @@ else
 echo "staging deployment ..."
 dfx canister --network $network create $mode
 ID=$(dfx canister --network $network id $mode)
-yes yes| dfx deploy --network $network --argument "(principal $ID)" --mode=reinstall $mode
+yes yes| dfx deploy --network $network --argument "(principal \"$ID\")" --mode=reinstall $mode
 fi
 
 
