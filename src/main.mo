@@ -48,81 +48,48 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
 /*********
 * TYPES *
 *********/
-  type Time = Time.Time;
   type AccountIdentifier = ExtCore.AccountIdentifier;
-  type SubAccount = ExtCore.SubAccount;
-  type User = ExtCore.User;
-  type Balance = ExtCore.Balance;
-  type TokenIdentifier = ExtCore.TokenIdentifier;
-  type TokenIndex  = ExtCore.TokenIndex ;
-  type CommonError = ExtCore.CommonError;
-  type BalanceRequest = ExtCore.BalanceRequest;
-  type BalanceResponse = ExtCore.BalanceResponse;
-  type TransferRequest = ExtCore.TransferRequest;
-  type TransferResponse = ExtCore.TransferResponse;
-  type AllowanceRequest = ExtAllowance.AllowanceRequest;
-  type ApproveRequest = ExtAllowance.ApproveRequest;
-  type Metadata = ExtCommon.Metadata;
-  type NotifyService = ExtCore.NotifyService;
-  type MintingRequest = {
-    to : AccountIdentifier;
-    asset : Nat32;
-  };
-  
-  // start custom
-  // cap 
-  type DetailValue = Root.DetailValue;
-  type Event = Root.Event;
-  type IndefiniteEvent = Root.IndefiniteEvent;
-  // end custom
-
-  
- // Ledger Types
   type AccountBalanceArgs = { account : AccountIdentifier };
   type ICPTs = { e8s : Nat64 };
-  
-  // cap
-  // start custom
-  private stable var rootBucketId : ?Text = null;
-  let _Cap = Cap.Cap(null, rootBucketId);
-  let creationCycles : Nat = 1_000_000_000_000;
-  // end custom
   
   
 /****************
 * STABLE STATE *
 ****************/
 
-// Tokens
-	private stable var _tokenMetadataState : [(TokenIndex, Metadata)] = [];
-  private stable var _ownersState : [(AccountIdentifier, [TokenIndex])] = [];
-  private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
-  private stable var _nextTokenIdState : TokenIndex  = 0;
+ // Tokens
+	private stable var _tokenMetadataState : [(TokenTypes.TokenIndex, TokenTypes.Metadata)] = [];
+  private stable var _ownersState : [(AccountIdentifier, [TokenTypes.TokenIndex])] = [];
+  private stable var _registryState : [(TokenTypes.TokenIndex, AccountIdentifier)] = [];
+  private stable var _nextTokenIdState : TokenTypes.TokenIndex  = 0;
   private stable var _minterState : Principal  = init_minter;
-  private stable var _supplyState : Balance  = 0;
+  private stable var _supplyState : TokenTypes.Balance  = 0;
 
-// Sale
+ // Sale
 	private stable var _saleTransactionsState : [SaleTypes.SaleTransaction] = [];
   private stable var _salesSettlementsState : [(AccountIdentifier, SaleTypes.Sale)] = [];
-  private stable var _failedSalesState : [(AccountIdentifier, SubAccount)] = [];
-  private stable var _tokensForSaleState : [TokenIndex] = [];
+  private stable var _failedSalesState : [(AccountIdentifier, TokenTypes.SubAccount)] = [];
+  private stable var _tokensForSaleState : [TokenTypes.TokenIndex] = [];
   private stable var _whitelistState : [AccountIdentifier] = [];
   private stable var _soldIcpState : Nat64 = 0;
 
-// Marketplace
+ // Marketplace
 	private stable var _transactionsState : [MarketplaceTypes.Transaction] = [];
-	private stable var _tokenSettlementState : [(TokenIndex, MarketplaceTypes.Settlement)] = [];
-	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
-	private stable var _paymentsState : [(Principal, [SubAccount])] = [];
-	private stable var _tokenListingState : [(TokenIndex, MarketplaceTypes.Listing)] = [];
+	private stable var _tokenSettlementState : [(TokenTypes.TokenIndex, MarketplaceTypes.Settlement)] = [];
+	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, TokenTypes.SubAccount)] = [];
+	private stable var _paymentsState : [(Principal, [TokenTypes.SubAccount])] = [];
+	private stable var _tokenListingState : [(TokenTypes.TokenIndex, MarketplaceTypes.Listing)] = [];
 
-// Assets
+ // Assets
 	private stable var _assetsState : [AssetsTypes.Asset] = [];
 
-// Shuffle
+ // Shuffle
   private stable var _isShuffledState : Bool = false;
 
-//State functions
+ // Cap
+  private stable var rootBucketId : ?Text = null;
+
+ //State functions
   system func preupgrade() {
    // Tokens  
     let {
@@ -187,16 +154,37 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     _assetsState := [];
   };
 
-  /*************
-  * CONSTANTS *
-  *************/
+/*************
+* CONSTANTS *
+*************/
 
   let ESCROWDELAY : Time.Time = 10 * 60 * 1_000_000_000;
   let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs };
+  let CREATION_CYCLES: Nat = 1_000_000_000_000;
 
-  /***********
-  * CLASSES *
-  ***********/
+/***********
+* CLASSES *
+***********/
+
+ // Cap
+  let _Cap = Cap.Cap(null, rootBucketId);
+
+  public shared(msg) func initCap() : async Result.Result<(), Text> {
+    assert(msg.caller == _minterState);
+    let pid = Principal.fromActor(myCanister);
+    let tokenContractId = Principal.toText(pid);
+
+    try {
+        rootBucketId := await _Cap.handshake(
+            tokenContractId,
+            CREATION_CYCLES,
+        );
+
+        return #ok();
+    } catch e {
+        throw e;
+    };
+  };
   
 // Tokens
   let _Tokens = Tokens.Factory(
@@ -210,13 +198,17 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _ownersState;
     }
   );
+
+  public shared (msg) func setMinter(minter: Principal) {
+    _Tokens.setMinter(msg.caller, minter);
+  };
     
   public query func balance(request : TokenTypes.BalanceRequest) : async TokenTypes.BalanceResponse {
     _Tokens.balance(request);
   };
 
-  public shared (msg) func setMinter(minter: Principal) {
-    _Tokens.setMinter(msg.caller, minter);
+  public query func bearer(token : TokenTypes.TokenIdentifier) : async Result.Result<TokenTypes.AccountIdentifier, TokenTypes.CommonError> {
+    _Tokens.bearer(token);
   };
 
 
@@ -267,22 +259,6 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   
 
   
-  public shared(msg) func initCap() : async Result.Result<(), Text> {
-    assert(msg.caller == _minterState);
-    let pid = Principal.fromActor(myCanister);
-    let tokenContractId = Principal.toText(pid);
-
-    try {
-        rootBucketId := await _Cap.handshake(
-            tokenContractId,
-            creationCycles
-        );
-
-        return #ok();
-    } catch e {
-        throw e;
-    };
-  };
 
 /**********
 * ASSETS *

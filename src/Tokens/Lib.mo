@@ -75,7 +75,7 @@ module {
       };
     };
 
-    public query func bearer(token : Types.TokenIdentifier) : async Result.Result<Types.AccountIdentifier, Types.CommonError> {
+    public func bearer(token : Types.TokenIdentifier) : Result.Result<Types.AccountIdentifier, Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(token, this) == false) {
         return #err(#InvalidToken(token));
       };
