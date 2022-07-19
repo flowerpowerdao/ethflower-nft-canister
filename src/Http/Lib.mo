@@ -20,69 +20,17 @@ module {
 
   public class HttpHandler(this: Principal, state: Types.State) {
     
-    /*********
-    * STATE *
-    *********/
 
-    /*************
-    * CONSTANTS *
-    *************/
+/*************
+* CONSTANTS *
+*************/
+
     let NOT_FOUND : Types.HttpResponse = {status_code = 404; headers = []; body = Blob.fromArray([]); streaming_strategy = null};
     let BAD_REQUEST : Types.HttpResponse = {status_code = 400; headers = []; body = Blob.fromArray([]); streaming_strategy = null};
-
-    private func _processFile(tokenid : ExtCore.TokenIdentifier, file : AssetTypes.File) : Types.HttpResponse {
-      // start custom
-      let self: Principal = this;
-      let canisterId: Text = Principal.toText(self);
-      let canister = actor (canisterId) : actor { http_request_streaming_callback : shared () -> async () };
-      // end custom
-
-      if (file.data.size() > 1 ) {
-        let (payload, token) = _streamContent(tokenid, 0, file.data);
-        return {
-          // start custom
-          status_code = 200;
-          headers = [
-            ("Content-Type", file.ctype), 
-            ("Cache-Control", "public, max-age=15552000"),
-            ("Access-Control-Expose-Headers","Content-Length, Content-Range"),
-            ("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS"),
-            ("Access-Control-Allow-Origin", "*"),
-            ("Content-Length","505258"),
-            ("Accept-Ranges","bytes"),
-          ];
-          // end custom
-          body = payload;
-          streaming_strategy = ?#Callback({
-            token = Option.unwrap(token);
-            callback = canister.http_request_streaming_callback;
-          });
-        };
-      } else {
-        return {
-          status_code = 200;
-          headers = [("content-type", file.ctype), ("cache-control", "public, max-age=15552000")];
-          body = file.data[0];
-          streaming_strategy = null;
-        };
-      };
-    };
-
-    private func _streamContent(id : Text, idx : Nat, data : [Blob]) : (Blob, ?Types.HttpStreamingCallbackToken) {
-      let payload = data[idx];
-      let size = data.size();
-
-      if (idx + 1 == size) {
-        return (payload, null);
-      };
-
-      return (payload, ?{
-        content_encoding = "gzip";
-        index = idx + 1;
-        sha256 = null;
-        key = id;
-      });
-    };
+    
+/********************
+* PUBLIC INTERFACE *
+********************/
 
     public func http_request_streaming_callback(token : Types.HttpStreamingCallbackToken) : Types.HttpStreamingCallbackResponse {
       switch(Utils.natFromText(token.key)) {
@@ -98,7 +46,7 @@ module {
       };
     };
 
-    public func http_request_streaming_callbackrequest(request : Types.HttpRequest) : Types.HttpResponse {
+    public func http_request(request : Types.HttpRequest) : Types.HttpResponse {
       let path = Iter.toArray(Text.tokens(request.url, #text("/")));
       switch(_getParam(request.url, "tokenid")) {
         case (?tokenid) {
@@ -258,6 +206,64 @@ module {
       };
     };
 
+/********************
+* INTERNAL METHODS *
+********************/
+
+    private func _processFile(tokenid : ExtCore.TokenIdentifier, file : AssetTypes.File) : Types.HttpResponse {
+      // start custom
+      let self: Principal = this;
+      let canisterId: Text = Principal.toText(self);
+      let canister = actor (canisterId) : actor { http_request_streaming_callback : shared () -> async () };
+      // end custom
+
+      if (file.data.size() > 1 ) {
+        let (payload, token) = _streamContent(tokenid, 0, file.data);
+        return {
+          // start custom
+          status_code = 200;
+          headers = [
+            ("Content-Type", file.ctype), 
+            ("Cache-Control", "public, max-age=15552000"),
+            ("Access-Control-Expose-Headers","Content-Length, Content-Range"),
+            ("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS"),
+            ("Access-Control-Allow-Origin", "*"),
+            ("Content-Length","505258"),
+            ("Accept-Ranges","bytes"),
+          ];
+          // end custom
+          body = payload;
+          streaming_strategy = ?#Callback({
+            token = Option.unwrap(token);
+            callback = canister.http_request_streaming_callback;
+          });
+        };
+      } else {
+        return {
+          status_code = 200;
+          headers = [("content-type", file.ctype), ("cache-control", "public, max-age=15552000")];
+          body = file.data[0];
+          streaming_strategy = null;
+        };
+      };
+    };
+
+    private func _streamContent(id : Text, idx : Nat, data : [Blob]) : (Blob, ?Types.HttpStreamingCallbackToken) {
+      let payload = data[idx];
+      let size = data.size();
+
+      if (idx + 1 == size) {
+        return (payload, null);
+      };
+
+      return (payload, ?{
+        content_encoding = "gzip";
+        index = idx + 1;
+        sha256 = null;
+        key = id;
+      });
+    };
+
     private func _displayICP(amt : Nat) : Text {
       debug_show(amt/100000000) # "." # debug_show ((amt%100000000)/1000000) # " ICP";
     };
@@ -283,6 +289,8 @@ module {
       });
       return t;
     };
+
+
 
 
   }

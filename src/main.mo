@@ -50,8 +50,17 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
 * TYPES *
 *********/
   type AccountIdentifier = ExtCore.AccountIdentifier;
+  type SubAccount = ExtCore.SubAccount;
   type AccountBalanceArgs = { account : AccountIdentifier };
   type ICPTs = { e8s : Nat64 };
+  type SendArgs = {
+    memo: Nat64;
+    amount: ICPTs;
+    fee: ICPTs;
+    from_subaccount: ?SubAccount;
+    to: AccountIdentifier;
+    created_at_time: ?Time.Time;
+  };
   
   
 /****************
@@ -159,8 +168,11 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
 * CONSTANTS *
 *************/
 
-  let ESCROWDELAY : Time.Time = 10 * 60 * 1_000_000_000;
-  let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs };
+  let ESCROWDELAY : Time.Time = 2 * 60 * 1_000_000_000;
+  let LEDGER_CANISTER = actor "ryjl3-tyaaa-aaaaa-aaaba-cai" : actor { 
+    account_balance_dfx : shared query AccountBalanceArgs -> async ICPTs;
+    send_dfx : shared SendArgs -> async Nat64; 
+  };
   let CREATION_CYCLES: Nat = 1_000_000_000_000;
 
 /***********
@@ -419,10 +431,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     await _Shuffle.shuffleAssets(msg.caller);
   };
 
-/********
-* HTTP *
-********/
 
+ // Http
   let _HttpHandler = Http.HttpHandler(
     cid,
     {
@@ -433,18 +443,15 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
   
-  public query func http_request_streaming_callbackrequest(request : HttpTypes.HttpRequest) : async HttpTypes.HttpResponse {
-    _HttpHandler.http_request_streaming_callbackrequest(request);
+  public query func http_request(request : HttpTypes.HttpRequest) : async HttpTypes.HttpResponse {
+    _HttpHandler.http_request(request);
   };
 
   public query func http_request_streaming_callback(token : HttpTypes.HttpStreamingCallbackToken) : async HttpTypes.HttpStreamingCallbackResponse {
     _HttpHandler.http_request_streaming_callback(token);
   };
 
-/**********
-* CYCLES *
-**********/
-
+ // cycles
   public func acceptCycles() : async () {
     let available = Cycles.available();
     let accepted = Cycles.accept(available);
