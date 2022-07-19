@@ -58,6 +58,8 @@ module {
     _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)];
     _paymentsState : [(Principal, [SubAccount])];
     _tokenListingState : [(TokenIndex, Listing)];
+    _disbursementsState : [(TokenIndex, AccountIdentifier, SubAccount, Nat64)];
+    _nextSubAccountState : Nat
   };
 
   public type Dependencies = {

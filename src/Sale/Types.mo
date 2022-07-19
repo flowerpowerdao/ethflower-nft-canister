@@ -17,8 +17,6 @@ module {
     _tokensForSaleState : [TokenIndex];
     _whitelistState : [AccountIdentifier];
     _soldIcpState : Nat64;
-    _disbursementsState : [(TokenIndex, AccountIdentifier, SubAccount, Nat64)];
-    _nextSubAccountState : Nat
   };
 
   public type Dependencies = {

@@ -1,6 +1,8 @@
 import Array "mo:base/Array";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
+import List "mo:base/List";
+import Nat64 "mo:base/Nat64";
 import Nat8 "mo:base/Nat8";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
@@ -27,6 +29,8 @@ module {
     private var _payments : HashMap.HashMap<Principal, Buffer.Buffer<Types.SubAccount>> = Utils.BufferHashMapFromIter(state._paymentsState.vals(), 0, Principal.equal, Principal.hash);
     private var _tokenListing : HashMap.HashMap<Types.TokenIndex, Types.Listing> = HashMap.fromIter(state._tokenListingState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
     private var _usedPaymentAddressess : Buffer.Buffer<(Types.AccountIdentifier, Principal, Types.SubAccount)> = Utils.bufferFromArray<(Types.AccountIdentifier, Principal, Types.SubAccount)>(state._usedPaymentAddressessState);
+    private var _disbursements : List.List<(Types.TokenIndex, Types.AccountIdentifier, Types.SubAccount, Nat64)> = List.fromArray(state._disbursementsState);
+    private var _nextSubAccount : Nat  = state._nextSubAccountState;
     
     public func toStable () : {
       _transactionsState : [Types.Transaction];
@@ -34,6 +38,8 @@ module {
       _usedPaymentAddressessState : [(Types.AccountIdentifier, Principal, Types.SubAccount)];
       _paymentsState : [(Principal, [Types.SubAccount])];
       _tokenListingState : [(Types.TokenIndex, Types.Listing)];
+      _disbursementsState : [(Types.TokenIndex, Types.AccountIdentifier, Types.SubAccount, Nat64)];
+      _nextSubAccountState : Nat
     } {
       return {
         _tokenSettlementState = Iter.toArray(_tokenSettlement.entries());
@@ -45,6 +51,8 @@ module {
         }));
         _usedPaymentAddressessState = _usedPaymentAddressess.toArray();
         _tokenListingState = Iter.toArray(_tokenListing.entries());
+        _disbursementsState = List.toArray(_disbursements);
+        _nextSubAccountState = _nextSubAccount;
       }
     };
     
@@ -52,44 +60,31 @@ module {
     * CONSTANTS *
     *************/
 
+    let salesFees : [(Types.AccountIdentifier, Nat64)] = [
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 7500), //Royalty Fee 
+      ("9dd5c70ada66e593cc5739c3177dc7a40530974f270607d142fc72fce91b1d25", 1000), //Entrepot Fee 
+    ];
+
 
     /********************
     * PUBLIC INTERFACE *
     ********************/
 
-    public func lock(caller : Principal, tokenid : Types.TokenIdentifier, price : Nat64, address : Types.AccountIdentifier, subaccount : Types.SubAccount) : async Result.Result<Types.AccountIdentifier, Types.CommonError> {
+    public func lock(caller : Principal, tokenid : Types.TokenIdentifier, price : Nat64, address : Types.AccountIdentifier, _subaccountNOTUSED : Types.SubAccount) : async Result.Result<Types.AccountIdentifier, Types.CommonError> {
       if (ExtCore.TokenIdentifier.isPrincipal(tokenid, this) == false) {
         return #err(#InvalidToken(tokenid));
-      };
-      var c : Nat = 0;
-      var failed : Bool = true;
-      while(c < 29) {
-        if (failed) {
-          if (subaccount[c] > 0) { 
-            failed := false;
-          };
-        };
-        c += 1;
-      };
-      if (failed) {
-        return #err(#Other("Invalid subaccount"));
-      };
-      if (subaccount.size() != 32) {
-        return #err(#Other("Wrong subaccount"));				
       };
       let token = ExtCore.TokenIdentifier.getIndex(tokenid);
       if (_isLocked(token)) {					
         return #err(#Other("Listing is locked"));				
       };
+      let subaccount = _getNextSubAccount();
       switch(_tokenListing.get(token)) {
         case (?listing) {
           if (listing.price != price) {
             return #err(#Other("Price has changed!"));
           } else {
-            let paymentAddress : Types.AccountIdentifier = AID.fromPrincipal(listing.seller, ?subaccount);
-            if (Option.isSome(_usedPaymentAddressess.find(func (a : (Types.AccountIdentifier, Principal, Types.SubAccount)) : Bool { a.0 == paymentAddress}))) {
-              return #err(#Other("Payment address has been used"));
-            };
+            let paymentAddress : Types.AccountIdentifier = AID.fromPrincipal(this, ?subaccount);
             _tokenListing.put(token, {
               seller = listing.seller;
               price = listing.price;
@@ -100,17 +95,16 @@ module {
                 let resp : Result.Result<(), Types.CommonError> = await settle(caller, tokenid);
                 switch(resp) {
                   case(#ok) {
-                    return #err(#Other("Listing as sold"));
+                    return #err(#Other("Listing has sold"));
                   };
                   case(#err _) {
-                    //If settled outside of here...
-                    if (Option.isNull(_tokenListing.get(token))) return #err(#Other("Listing as sold"));
+                    //Atomic protection
+                    if (Option.isNull(_tokenListing.get(token))) return #err(#Other("Listing has sold"));
                   };
                 };
               };
               case(_){};
             };
-            _usedPaymentAddressess.add((paymentAddress, listing.seller, subaccount));
             _tokenSettlement.put(token, {
               seller = listing.seller;
               price = listing.price;
@@ -133,41 +127,56 @@ module {
       let token = ExtCore.TokenIdentifier.getIndex(tokenid);
       switch(_tokenSettlement.get(token)) {
         case(?settlement){
-          let response : Types.ICPTs = await consts.LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(settlement.seller, ?settlement.subaccount)});
+          let response : Types.ICPTs = await consts.LEDGER_CANISTER.account_balance_dfx({account = AID.fromPrincipal(this, ?settlement.subaccount)});
           switch(_tokenSettlement.get(token)) {
             case(?settlement){
               if (response.e8s >= settlement.price){
-                //We can settle!
-                _payments.put(settlement.seller, switch(_payments.get(settlement.seller)) {
-                  case(?p) {p.add(settlement.subaccount); p};
-                  case(_) Utils.bufferFromArray([settlement.subaccount]);
-                });
-                let event : Root.IndefiniteEvent = {
-                        operation = "sale";
-                        details = [
-                          ("to", #Text(settlement.buyer)),
-                          ("from", #Principal(settlement.seller)),
-                          ("price_decimals", #U64(8)),
-                          ("price_currency", #Text("ICP")),
-                          ("price", #U64(settlement.price)),
-                          ("token_id", #Text(tokenid))
-                        ];
-                        caller;
+                switch (deps._Tokens.getOwnerFromRegistry(token)) {
+                  case (?token_owner) {
+                    var bal : Nat64 = settlement.price - (10000 * Nat64.fromNat(salesFees.size() + 1));
+                    var rem = bal;
+                    for(f in salesFees.vals()){
+                      var _fee : Nat64 = bal * f.1 / 100000;
+                      _addDisbursement((token, f.0, settlement.subaccount, _fee));
+                      rem := rem -  _fee : Nat64;
+                    };
+                    _addDisbursement((token, token_owner, settlement.subaccount, rem));
+                    let event : Root.IndefiniteEvent = {
+                      operation = "sale";
+                      details = [
+                        ("to", #Text(settlement.buyer)),
+                        ("from", #Principal(settlement.seller)),
+                        ("price_decimals", #U64(8)),
+                        ("price_currency", #Text("ICP")),
+                        ("price", #U64(settlement.price)),
+                        ("token_id", #Text(tokenid))
+                      ];
+                      caller;
+                    };
+                    ignore deps._Cap.insert(event);
+                    deps._Tokens.transferTokenToUser(token, settlement.buyer);
+                    _transactions.add({
+                      token = tokenid;
+                      seller = settlement.seller;
+                      price = settlement.price;
+                      buyer = settlement.buyer;
+                      time = Time.now();
+                    });
+                    _tokenListing.delete(token);
+                    _tokenSettlement.delete(token);
+                    return #ok();
+                  };
+                  case (_) {
+                    return #err(#InvalidToken(tokenid));
+                  };
                 };
-                ignore deps._Cap.insert(event);
-                deps._Tokens.transferTokenToUser(token, settlement.buyer);
-                _transactions.add({
-                  token = tokenid;
-                  seller = settlement.seller;
-                  price = settlement.price;
-                  buyer = settlement.buyer;
-                  time = Time.now();
-                });
-                _tokenListing.delete(token);
-                _tokenSettlement.delete(token);
-                return #ok();
               } else {
-                return #err(#Other("Insufficient funds sent"));
+                if (_isLocked(token)) {					
+                  return #err(#Other("Insufficient funds sent"));
+                } else {
+                  _tokenSettlement.delete(token);
+                  return #err(#Other("Nothing to settle"));				
+                };
               };
             };
             case(_) return #err(#Other("Nothing to settle"));
@@ -386,6 +395,25 @@ module {
         };
         case(_) return false;
       };
+    };
+
+    func _natToSubAccount(n : Nat) : Types.SubAccount {
+      let n_byte = func(i : Nat) : Nat8 {
+        assert(i < 32);
+        let shift : Nat = 8 * (32 - 1 - i);
+        Nat8.fromIntWrap(n / 2**shift)
+      };
+      Array.tabulate<Nat8>(32, n_byte)
+    };
+
+    func _getNextSubAccount() : Types.SubAccount {
+      var _saOffset = 4294967296;
+      _nextSubAccount += 1;
+      return _natToSubAccount(_saOffset+_nextSubAccount);
+    };
+
+    func _addDisbursement(d : (Types.TokenIndex, Types.AccountIdentifier, Types.SubAccount, Nat64)) : () {
+      _disbursements := List.push(d, _disbursements);
     };
 
   }

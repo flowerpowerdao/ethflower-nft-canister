@@ -121,8 +121,6 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _tokensForSaleState; 
       _whitelistState;
       _soldIcpState;
-      _disbursementsState;
-      _nextSubAccountState;
     } = _Sale.toStable();
   
    // Marketplace
@@ -132,6 +130,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _usedPaymentAddressessState; 
       _paymentsState; 
       _tokenListingState; 
+      _disbursementsState;
+      _nextSubAccountState;
     } = _Marketplace.toStable();
 
    // Assets
@@ -239,7 +239,9 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _tokenListingState;
       _tokenSettlementState;
       _transactionsState;
-      _usedPaymentAddressessState
+      _usedPaymentAddressessState;
+      _disbursementsState;
+      _nextSubAccountState;
     },
     {
       _Tokens;
@@ -315,8 +317,6 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _failedSalesState;
       _salesSettlementsState;
       _soldIcpState;
-      _disbursementsState;
-      _nextSubAccountState;
     },
     {
       _Cap;
