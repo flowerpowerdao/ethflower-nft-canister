@@ -259,7 +259,7 @@ module {
       };
     };
 
-    public shared(msg) func disburse() : async () {
+    public func disburse() : async () {
       var _cont : Bool = true;
       while(_cont){
         var last = List.pop(_disbursements);
