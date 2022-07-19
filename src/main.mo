@@ -269,6 +269,10 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   public shared(msg) func clearPayments(seller : Principal, payments : [MarketplaceTypes.SubAccount]) : async () {
     await _Marketplace.clearPayments(seller, payments);
   };
+
+  public shared(msg) func disburse() : async () {
+    await _Marketplace.disburse();
+  };
     
   // queriues
   public query func details(token : MarketplaceTypes.TokenIdentifier) : async Result.Result<(MarketplaceTypes.AccountIdentifier, ?MarketplaceTypes.Listing), MarketplaceTypes.CommonError> {

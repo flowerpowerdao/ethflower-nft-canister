@@ -1,4 +1,5 @@
 import Array "mo:base/Array";
+import Blob "mo:base/Blob";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
@@ -9,6 +10,7 @@ import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Time "mo:base/Time";
 
+import Encoding "mo:encoding/Binary";
 import Root "mo:cap/Root";
 
 import AID "../toniq-labs/util/AccountIdentifier";
@@ -254,6 +256,33 @@ module {
           _payments.put(seller, newPayments)
         };
         case(_){};
+      };
+    };
+
+    public shared(msg) func disburse() : async () {
+      var _cont : Bool = true;
+      while(_cont){
+        var last = List.pop(_disbursements);
+        switch(last.0){
+          case(?d) {
+            _disbursements := last.1;
+            try {
+              var bh = await consts.LEDGER_CANISTER.send_dfx({
+                memo = Encoding.BigEndian.toNat64(Blob.toArray(Principal.toBlob(Principal.fromText(ExtCore.TokenIdentifier.fromPrincipal(this, d.0)))));
+                amount = { e8s = d.3 };
+                fee = { e8s = 10000 };
+                from_subaccount = ?d.2;
+                to = d.1;
+                created_at_time = null;
+              });
+            } catch (e) {
+              _disbursements := List.push(d, _disbursements);
+            };
+          };
+          case(_) {
+            _cont := false;
+          };
+        };
       };
     };
 
