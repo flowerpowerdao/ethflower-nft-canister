@@ -7,7 +7,7 @@ module {
     };
 
     public type Dependencies = {
-        _Assets : Assets.Assets;
+        _Assets : Assets.Factory;
         _Tokens : Tokens.Factory;
     };
 }

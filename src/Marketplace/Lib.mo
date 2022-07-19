@@ -312,6 +312,22 @@ module {
       };
     };
 
+    public query func stats() : async (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
+      var res : (Nat64, Nat64, Nat64) = Array.foldLeft<Types.Transaction, (Nat64, Nat64, Nat64)>(_transactions.toArray(), (0,0,0), func (b : (Nat64, Nat64, Nat64), a : Types.Transaction) : (Nat64, Nat64, Nat64) {
+        var total : Nat64 = b.0 + a.price;
+        var high : Nat64 = b.1;
+        var low : Nat64 = b.2;
+        if (high == 0 or a.price > high) high := a.price; 
+        if (low == 0 or a.price < low) low := a.price; 
+        (total, high, low);
+      });
+      var floor : Nat64 = 0;
+      for (a in _tokenListing.entries()){
+        if (floor == 0 or a.1.price < floor) floor := a.1.price;
+      };
+      (res.0, res.1, res.2, floor, _tokenListing.size(), deps._Tokens.registrySize(), _transactions.size());
+    };
+
     /***********************
     * GETTERS AND SETTERS *
     ***********************/
@@ -326,6 +342,10 @@ module {
 
     public func tokenListingSize() : Nat {
       return _tokenListing.size();
+    };
+
+    public func getListingFromTokenListing(token : Types.TokenIndex) : ?Types.Listing {
+      return _tokenListing.get(token);
     };
 
     public func putPayments(principal: Principal, payments: Buffer.Buffer<Types.SubAccount>) {

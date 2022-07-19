@@ -24,9 +24,10 @@ import Router "mo:cap/Router";
 import Types "mo:cap/Types";
 
 import AID "./toniq-labs/util/AccountIdentifier";
-import AssetTypes "CanisterAssets/Types";
 import Assets "CanisterAssets";
+import AssetsTypes "CanisterAssets/Types";
 import Buffer "./Buffer";
+import EXT "Ext";
 import ExtAllowance "./toniq-labs/ext/Allowance";
 import ExtCommon "./toniq-labs/ext/Common";
 import ExtCore "./toniq-labs/ext/Core";
@@ -34,17 +35,19 @@ import ExtNonFungible "./toniq-labs/ext/NonFungible";
 import Http "Http";
 import HttpTypes "Http/Types";
 import Marketplace "Marketplace";
+import MarketplaceTypes "Marketplace/Types";
 import Sale "Sale";
 import SaleTypes "Sale/Types";
 import Shuffle "Shuffle";
+import TokenTypes "Tokens/Types";
 import Tokens "Tokens";
 import Utils "./Utils";
 
 shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanister {
 
-  /*********
-  * TYPES *
-  *********/
+/*********
+* TYPES *
+*********/
   type Time = Time.Time;
   type AccountIdentifier = ExtCore.AccountIdentifier;
   type SubAccount = ExtCore.SubAccount;
@@ -52,7 +55,6 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   type Balance = ExtCore.Balance;
   type TokenIdentifier = ExtCore.TokenIdentifier;
   type TokenIndex  = ExtCore.TokenIndex ;
-  type Extension = ExtCore.Extension;
   type CommonError = ExtCore.CommonError;
   type BalanceRequest = ExtCore.BalanceRequest;
   type BalanceResponse = ExtCore.BalanceResponse;
@@ -74,30 +76,8 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   type IndefiniteEvent = Root.IndefiniteEvent;
   // end custom
 
-  //Marketplace
-  type Transaction = {
-    token : TokenIdentifier;
-    seller : Principal;
-    price : Nat64;
-    buyer : AccountIdentifier;
-    time : Time;
-  };
-  type Settlement = {
-    seller : Principal;
-    price : Nat64;
-    subaccount : SubAccount;
-    buyer : AccountIdentifier;
-  };
-  type Listing = {
-    seller : Principal;
-    price : Nat64;
-    locked : ?Time;
-  };
-  type ListRequest = {
-    token : TokenIdentifier;
-    from_subaccount : ?SubAccount;
-    price : ?Nat64;
-  };
+  
+ // Ledger Types
   type AccountBalanceArgs = { account : AccountIdentifier };
   type ICPTs = { e8s : Nat64 };
   
@@ -108,79 +88,53 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
   let creationCycles : Nat = 1_000_000_000_000;
   // end custom
   
-  private let EXTENSIONS : [Extension] = ["@ext/common", "@ext/nonfungible"];
   
-  /****************
-  * STABLE STATE *
-  ****************/
+/****************
+* STABLE STATE *
+****************/
 
-  private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
-  private var _registry : HashMap.HashMap<TokenIndex, AccountIdentifier> = HashMap.fromIter(_registryState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-
+// Tokens
 	private stable var _tokenMetadataState : [(TokenIndex, Metadata)] = [];
-  private var _tokenMetadata : HashMap.HashMap<TokenIndex, Metadata> = HashMap.fromIter(_tokenMetadataState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-
   private stable var _ownersState : [(AccountIdentifier, [TokenIndex])] = [];
-	private var _owners : HashMap.HashMap<AccountIdentifier, Buffer.Buffer<TokenIndex>> = Utils.BufferHashMapFromIter(_ownersState.vals(), 0, AID.equal, AID.hash);
-  
-	private stable var _tokenListingState : [(TokenIndex, Listing)] = [];
-  private var _tokenListing : HashMap.HashMap<TokenIndex, Listing> = HashMap.fromIter(_tokenListingState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-
-	private stable var _tokenSettlementState : [(TokenIndex, Settlement)] = [];
-  private var _tokenSettlement : HashMap.HashMap<TokenIndex, Settlement> = HashMap.fromIter(_tokenSettlementState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
-
-	private stable var _paymentsState : [(Principal, [SubAccount])] = [];
-  private var _payments : HashMap.HashMap<Principal, Buffer.Buffer<SubAccount>> = Utils.BufferHashMapFromIter(_paymentsState.vals(), 0, Principal.equal, Principal.hash);
-
-	private stable var _refundsState : [(Principal, [SubAccount])] = [];
-  private var _refunds : HashMap.HashMap<Principal, [SubAccount]> = HashMap.fromIter(_refundsState.vals(), 0, Principal.equal, Principal.hash);
-  
-	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
-
-	private stable var _transactionsState : [Transaction] = [];
-	private var _transactions : Buffer.Buffer<Transaction> = Utils.bufferFromArray(_transactionsState);
-
-// sale
-	private stable var _saleTransactionsState : [SaleTypes.SaleTransaction] = [];
-
-  private stable var _salesSettlementsState : [(AccountIdentifier, SaleTypes.Sale)] = [];
-  
-  private stable var _failedSalesState : [(AccountIdentifier, SubAccount)] = [];
-
-  private stable var _tokensForSaleState : [TokenIndex] = [];
-
-  private stable var _whitelistState : [AccountIdentifier] = [];
-
-  private stable var _soldIcpState : Nat64 = 0;
- 
-//
-	private stable var _assetsState : [AssetTypes.Asset] = [];
-
-  private stable var _supplyState : Balance  = 0;
-  private stable var _minterState : Principal  = init_minter;
+  private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
   private stable var _nextTokenIdState : TokenIndex  = 0;
+  private stable var _minterState : Principal  = init_minter;
+  private stable var _supplyState : Balance  = 0;
 
+// Sale
+	private stable var _saleTransactionsState : [SaleTypes.SaleTransaction] = [];
+  private stable var _salesSettlementsState : [(AccountIdentifier, SaleTypes.Sale)] = [];
+  private stable var _failedSalesState : [(AccountIdentifier, SubAccount)] = [];
+  private stable var _tokensForSaleState : [TokenIndex] = [];
+  private stable var _whitelistState : [AccountIdentifier] = [];
+  private stable var _soldIcpState : Nat64 = 0;
+
+// Marketplace
+	private stable var _transactionsState : [MarketplaceTypes.Transaction] = [];
+	private stable var _tokenSettlementState : [(TokenIndex, MarketplaceTypes.Settlement)] = [];
+	private stable var _usedPaymentAddressessState : [(AccountIdentifier, Principal, SubAccount)] = [];
+	private stable var _paymentsState : [(Principal, [SubAccount])] = [];
+	private stable var _tokenListingState : [(TokenIndex, MarketplaceTypes.Listing)] = [];
+
+// Assets
+	private stable var _assetsState : [AssetsTypes.Asset] = [];
+
+// Shuffle
   private stable var _isShuffledState : Bool = false;
 
 //State functions
   system func preupgrade() {
-    _registryState := Iter.toArray(_registry.entries());
-    _tokenMetadataState := Iter.toArray(_tokenMetadata.entries());
-    _ownersState := Iter.toArray(Iter.map<(AccountIdentifier, Buffer.Buffer<TokenIndex>), (AccountIdentifier, [TokenIndex])>(
-      _owners.entries(), 
-      func (owner) {
-        return (owner.0, owner.1.toArray());
-      }));
-    _tokenListingState := Iter.toArray(_tokenListing.entries());
-    _tokenSettlementState := Iter.toArray(_tokenSettlement.entries());
-    _paymentsState := Iter.toArray(Iter.map<(Principal, Buffer.Buffer<SubAccount>), (Principal, [SubAccount])>(
-      _payments.entries(), 
-      func (payment) {
-        return (payment.0, payment.1.toArray());
-      }));
-    _refundsState := Iter.toArray(_refunds.entries());
+   // Tokens  
+    let {
+      _tokenMetadataState;
+      _ownersState;
+      _registryState;
+      _nextTokenIdState;
+      _minterState;
+      _supplyState;
+    } = _Tokens.toStable();
 
-    // is this really overwriting the state?
+   // Sale
     let { 
       _saleTransactionsState; 
       _salesSettlementsState;
@@ -189,27 +143,48 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _whitelistState;
       _soldIcpState;
     } = _Sale.toStable();
+  
+   // Marketplace
+    let { 
+      _transactionsState; 
+      _tokenSettlementState; 
+      _usedPaymentAddressessState; 
+      _paymentsState; 
+      _tokenListingState; 
+    } = _Marketplace.toStable();
 
+   // Assets
     let {
       _assetsState;
     } = _Assets.toStable();
   };
+
   system func postupgrade() {
-    _registryState := [];
+   // Tokens
     _tokenMetadataState := [];
     _ownersState := [];
-    _tokenListingState := [];
-    _tokenSettlementState := [];
-    _paymentsState := [];
-    _refundsState := [];
-    _whitelistState := [];
-    _tokensForSaleState := [];
-    _usedPaymentAddressessState := [];
+    _registryState := [];
+    _nextTokenIdState := 0;
+    _minterState := init_minter;
+    _supplyState := 0;
+
+   // Sale
     _saleTransactionsState := [];
-    _transactionsState := [];
-    _failedSalesState := [];
-    _assetsState := [];
     _salesSettlementsState := [];
+    _failedSalesState := [];
+    _tokensForSaleState := [];
+    _whitelistState := [];
+    _soldIcpState := 0;
+
+   // Marketplace
+    _transactionsState := [];
+    _tokenSettlementState := [];
+    _usedPaymentAddressessState := [];
+    _paymentsState := [];
+    _tokenListingState := [];
+
+   // Assets
+    _assetsState := [];
   };
 
   /*************
@@ -236,11 +211,13 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
     
-  public query func balance(request : Types.BalanceRequest) : async Types.BalanceResponse {
+  public query func balance(request : TokenTypes.BalanceRequest) : async TokenTypes.BalanceResponse {
+    _Tokens.balance(request);
+  };
 
   public shared (msg) func setMinter(minter: Principal) {
     _Tokens.setMinter(msg.caller, minter);
-  }
+  };
 
 
 // Marketplace
@@ -307,11 +284,11 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     };
   };
 
-  /**********
-  * ASSETS *
-  **********/
+/**********
+* ASSETS *
+**********/
 
-  let _Assets = Assets.Assets(
+  let _Assets = Assets.Factory(
     {
       _assetsState;
       _isShuffledState;
@@ -321,9 +298,9 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
   
-  /***********
-  * SHUFFLE *
-  ***********/
+/***********
+* SHUFFLE *
+***********/
 
   let _Shuffle = Shuffle.Shuffle(
     {
@@ -335,9 +312,9 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
 
-  /********
-  * HTTP *
-  ********/
+/********
+* HTTP *
+********/
 
   let _HttpHandler = Http.HttpHandler(
     cid,
@@ -348,68 +325,6 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _Tokens
     }
   );
-
-  
-  public query func getMinter() : async Principal {
-    _Tokens.getMinter();
-  };
-  public query func extensions() : async [Extension] {
-    EXTENSIONS;
-  };
-
-  // start custom
-  public query func supply() : async Result.Result<Balance, CommonError> {
-  // end custom
-    #ok(_Tokens.getSupply());
-  };
-  public query func getRegistry() : async [(TokenIndex, AccountIdentifier)] {
-    Iter.toArray(_registry.entries());
-  };
-  // start custom
-  public query func getTokens() : async [(TokenIndex, Text)] {
-    var resp : Buffer.Buffer<(TokenIndex, Text)> = Buffer.Buffer(0);
-    for(e in _tokenMetadata.entries()){
-      let assetid = _Assets.get(Nat32.toNat(e.0)+1).name;
-      resp.add((e.0, assetid));
-    };
-    resp.toArray();
-  };
-  // end custom
-  public query func tokens(aid : AccountIdentifier) : async Result.Result<[TokenIndex], CommonError> {
-    switch(_owners.get(aid)) {
-      case(?tokens) return #ok(tokens.toArray());
-      case(_) return #err(#Other("No tokens"));
-    };
-  };
-  
-  public query func tokens_ext(aid : AccountIdentifier) : async Result.Result<[(TokenIndex, ?Listing, ?Blob)], CommonError> {
-		switch(_owners.get(aid)) {
-      case(?tokens) {
-        var resp : Buffer.Buffer<(TokenIndex, ?Listing, ?Blob)> = Buffer.Buffer(0);
-        for (a in tokens.vals()){
-          resp.add((a, _tokenListing.get(a), null));
-        };
-        return #ok(resp.toArray());
-      };
-      case(_) return #err(#Other("No tokens"));
-    };
-	};
-  public query func metadata(token : TokenIdentifier) : async Result.Result<Metadata, CommonError> {
-    if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(myCanister)) == false) {
-			return #err(#InvalidToken(token));
-		};
-		let tokenind = ExtCore.TokenIdentifier.getIndex(token);
-    switch (_tokenMetadata.get(tokenind)) {
-      case (?token_metadata) {
-				return #ok(token_metadata);
-      };
-      case (_) {
-        return #err(#InvalidToken(token));
-      };
-    };
-  };
-  
-
   
   public query func http_request_streaming_callbackrequest(request : HttpTypes.HttpRequest) : async HttpTypes.HttpResponse {
     _HttpHandler.http_request_streaming_callbackrequest(request);
@@ -419,33 +334,18 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     _HttpHandler.http_request_streaming_callback(token);
   };
 
-  
-    
-  //Internal cycle management - good general case
+/**********
+* CYCLES *
+**********/
+
   public func acceptCycles() : async () {
     let available = Cycles.available();
     let accepted = Cycles.accept(available);
     assert (accepted == available);
   };
+
   public query func availableCycles() : async Nat {
     return Cycles.balance();
-  };
-  
-  //Private
-  public query func stats() : async (Nat64, Nat64, Nat64, Nat64, Nat, Nat, Nat) {
-    var res : (Nat64, Nat64, Nat64) = Array.foldLeft<Transaction, (Nat64, Nat64, Nat64)>(_transactions.toArray(), (0,0,0), func (b : (Nat64, Nat64, Nat64), a : Transaction) : (Nat64, Nat64, Nat64) {
-      var total : Nat64 = b.0 + a.price;
-      var high : Nat64 = b.1;
-      var low : Nat64 = b.2;
-      if (high == 0 or a.price > high) high := a.price; 
-      if (low == 0 or a.price < low) low := a.price; 
-      (total, high, low);
-    });
-    var floor : Nat64 = 0;
-    for (a in _tokenListing.entries()){
-      if (floor == 0 or a.1.price < floor) floor := a.1.price;
-    };
-    (res.0, res.1, res.2, floor, _tokenListing.size(), _registry.size(), _transactions.size());
   };
   
 }

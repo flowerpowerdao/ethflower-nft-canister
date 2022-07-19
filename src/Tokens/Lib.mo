@@ -50,12 +50,12 @@ module {
     * PUBLIC INTERFACE *
     ********************/
 
-    public func setMinter(caller: Principal, minter : Principal) : async () {
-      assert(msg.caller == _minter);
+    public func setMinter(caller: Principal, minter : Principal) {
+      assert(caller == _minter);
       _minter := minter;
     };
 
-    public query func balance(request : Types.BalanceRequest) : async Types.BalanceResponse {
+    public func balance(request : Types.BalanceRequest) : Types.BalanceResponse {
       if (ExtCore.TokenIdentifier.isPrincipal(request.token, this) == false) {
         return #err(#InvalidToken(request.token));
       };
@@ -99,6 +99,14 @@ module {
       return _registry.get(tokenIndex);
     };
 
+    public func getTokensFromOwners(aid : Types.AccountIdentifier) : ?Buffer.Buffer<Types.TokenIndex> {
+      _owners.get(aid)
+    };
+
+    public func registrySize() : Nat {
+      return _registry.size();
+    };
+
     public func getNextTokenId() : Types.TokenIndex {
       return _nextTokenId;
     };
@@ -116,7 +124,19 @@ module {
     };
 
     public func getMinter() : Principal {
-      return _minter;
+      _minter;
+    };
+
+    public func getRegistry() : HashMap.HashMap<Types.TokenIndex, Types.AccountIdentifier> {
+      _registry;
+    };
+    
+    public func getTokenMetadata() : HashMap.HashMap<Types.TokenIndex, Types.Metadata> {
+      _tokenMetadata;
+    };
+
+    public func getMetadataFromTokenMetadata(tokenIndex : Types.TokenIndex) : ?Types.Metadata {
+      _tokenMetadata.get(tokenIndex);
     };
 
     public func putTokenMetadata(index : Types.TokenIndex, metadata: Types.Metadata) {

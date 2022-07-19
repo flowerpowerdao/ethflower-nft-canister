@@ -10,7 +10,7 @@ import Utils "../Utils";
 
 module {
 
-  public class Assets (state : Types.State, deps : Types.Dependencies) {
+  public class Factory (state : Types.State, deps : Types.Dependencies) {
     
     /*********
     * STATE *
