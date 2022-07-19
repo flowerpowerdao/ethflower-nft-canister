@@ -228,7 +228,7 @@ module {
             ("Access-Control-Expose-Headers","Content-Length, Content-Range"),
             ("Access-Control-Allow-Methods", "GET, POST, HEAD, OPTIONS"),
             ("Access-Control-Allow-Origin", "*"),
-            ("Content-Length","505258"),
+            ("Content-Length","3576448"),
             ("Accept-Ranges","bytes"),
           ];
           // end custom
