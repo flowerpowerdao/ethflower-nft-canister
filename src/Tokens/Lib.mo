@@ -50,7 +50,7 @@ module {
     * PUBLIC INTERFACE *
     ********************/
 
-    public shared(msg) func setMinter(minter : Principal) : async () {
+    public func setMinter(caller: Principal, minter : Principal) : async () {
       assert(msg.caller == _minter);
       _minter := minter;
     };

@@ -2,6 +2,8 @@
 
 # eth flower nft 🌼
 
+> :warning: **If you use this for another NFT project**: MAKE SURE YOU DELETE THE `canister_ids.json` FIRST!
+
 ## quick deploy 🏃‍♀️
 
 -   To quickly reinstall (**WIPES ALL STATE**) the NFT staging canister locally run `dfx deploy staging --mode reinstall`

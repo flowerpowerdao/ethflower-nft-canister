@@ -6,19 +6,26 @@ filename=$(echo $file | sed -E "s/.+\///")
 fileextension=$(echo $file | sed -E "s/.+\.//")
 mime="video/$fileextension"
 network=${1:-local}
-number_of_assets=${2:-50}
+number_of_assets=${2:-10}
 mode=${3:-staging}
 threshold="100000"
 asset_canister_url="https://cdfps-iyaaa-aaaae-qabta-cai.raw.ic0.app/"
+
+dfx stop
+dfx start --background --clean
 
 # reset the canister state
 if [[ "$mode" == "production" ]]
 then
 echo "production deployment ..."
-dfx deploy --network $network $mode
+dfx canister --network $network create $mode
+ID=$(dfx canister --network $network id $mode)
+dfx deploy --network $network --argument "(principal $ID)" $mode
 else
 echo "staging deployment ..."
-yes yes| dfx deploy --network $network --mode=reinstall $mode
+dfx canister --network $network create $mode
+ID=$(dfx canister --network $network id $mode)
+yes yes| dfx deploy --network $network --argument "(principal $ID)" --mode=reinstall $mode
 fi
 
 
@@ -58,7 +65,7 @@ else
 open "http://127.0.0.1:8000/?canisterId=$(dfx canister --network $network id $mode)&asset=0"
 fi
 
-# add the other 
+# add the other assets
 for i in {1..$number_of_assets}
 do
     echo "uploading asset $i"
@@ -155,14 +162,13 @@ do
     })'
 done
 
+# init cap
+echo "initiating cap ..."
+dfx canister --network $network call $mode initCap
+
 # init mint
 echo "initiating mint ..."
 dfx canister --network $network call $mode initMint
-
-# init cap
-# first create the asset calling addAsset
-echo "initiating cap ..."
-dfx canister --network $network call $mode initCap
 
 # check the asset that are linked to the tokens
 for i in {0..9}

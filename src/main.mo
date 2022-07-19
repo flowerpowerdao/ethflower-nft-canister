@@ -235,6 +235,12 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
       _ownersState;
     }
   );
+    
+  public query func balance(request : Types.BalanceRequest) : async Types.BalanceResponse {
+
+  public shared (msg) func setMinter(minter: Principal) {
+    _Tokens.setMinter(msg.caller, minter);
+  }
 
 
 // Marketplace
