@@ -16,9 +16,9 @@ import Utils "../Utils";
 module {
   public class Factory (this : Principal, state : Types.State, deps : Types.Dependencies, consts : Types.Constants) {
 
-    /*********
-    * STATE *
-    *********/
+/*********
+* STATE *
+*********/
 
     private var _saleTransactions: Buffer.Buffer<Types.SaleTransaction> = Utils.bufferFromArray<Types.SaleTransaction>(state._saleTransactionsState);
     private var _salesSettlements : HashMap.HashMap<Types.AccountIdentifier, Types.Sale> = HashMap.fromIter(state._salesSettlementsState.vals(), 0, AID.equal, AID.hash);
@@ -46,21 +46,22 @@ module {
     };
 
 
-    /*************
-    * CONSTANTS *
-    *************/
+/*************
+* CONSTANTS *
+*************/
 
     let price : Nat64 = 500000000;
     let whitelistprice : Nat64 = 300000000;
     let saleStart : Time.Time = 1642906800000000000;
     let whitelistEnd : Time.Time = 1642950000000000000;
 
-    /********************
-    * PUBLIC INTERFACE *
-    ********************/
+/********************
+* PUBLIC INTERFACE *
+********************/
 
-    public shared(msg) func initMint() : async () {
-      assert(msg.caller == deps._Tokens.getMinter() and deps._Tokens.getNextTokenId() == 0);
+    // updates
+    public func initMint(caller : Principal) : () {
+      assert(caller == deps._Tokens.getMinter() and deps._Tokens.getNextTokenId() == 0);
       //Mint
       while(deps._Tokens.getNextTokenId() < 2009) {
         deps._Tokens.putTokenMetadata(deps._Tokens.getNextTokenId(), #nonfungible({
@@ -87,23 +88,7 @@ module {
       setTokensForSale([1913,455,210,772,2008]);
     };
 
-    public query(msg) func saleTransactions() : async [Types.SaleTransaction] {
-      _saleTransactions.toArray();
-    };
-
-    public query(msg) func salesStats(address : Types.AccountIdentifier) : async (Time.Time, Nat64, Nat) {
-      if (Time.now() >= whitelistEnd) {
-        (saleStart, price, _tokensForSale.size());
-      } else {
-        if (isWhitelisted(address)) {
-          (saleStart, whitelistprice, _tokensForSale.size());        
-        } else {
-          (saleStart, price, _tokensForSale.size());        
-        };
-      };
-    };
-
-    public shared(msg) func reserve(amount : Nat64, quantity : Nat64, address : Types.AccountIdentifier, subaccount : Types.SubAccount) : async Result.Result<(Types.AccountIdentifier, Nat64), Text> {
+    public func reserve(amount : Nat64, quantity : Nat64, address : Types.AccountIdentifier, subaccount : Types.SubAccount) : Result.Result<(Types.AccountIdentifier, Nat64), Text> {
       var c : Nat = 0;
       var failed : Bool = true;
       while(c < 29) {
@@ -171,7 +156,7 @@ module {
       #ok((paymentAddress, total));
     };
 
-    public shared(msg) func retreive(paymentaddress : Types.AccountIdentifier) : async Result.Result<(), Text> {
+    public func retreive(caller : Principal, paymentaddress : Types.AccountIdentifier) : async Result.Result<(), Text> {
       switch(_salesSettlements.get(paymentaddress)) {
         case(?settlement){
           let response : Types.ICPTs = await consts.LEDGER_CANISTER.account_balance_dfx({account = paymentaddress});
@@ -205,7 +190,7 @@ module {
                     // there can only be one token in tokens due to the reserve function
                     ("token_id", #Text(Utils.indexToIdentifier(settlement.tokens[0], this))),
                     ];
-                  caller = msg.caller;
+                  caller;
                 };
                 ignore deps._Cap.insert(event);
                 // end custom
@@ -231,17 +216,34 @@ module {
       };
     };
 
-    public query func salesSettlements() : async [(Types.AccountIdentifier, Types.Sale)] {
+    // queries
+    public func salesSettlements() : [(Types.AccountIdentifier, Types.Sale)] {
       Iter.toArray(_salesSettlements.entries());
     };
 
-    public query func failedSales() : async [(Types.AccountIdentifier, Types.SubAccount)] {
+    public func failedSales() : [(Types.AccountIdentifier, Types.SubAccount)] {
       _failedSales.toArray();
     };
 
-    /*******************
-    * INTERNAL METHODS *
-    *******************/
+    public func saleTransactions() : [Types.SaleTransaction] {
+      _saleTransactions.toArray();
+    };
+
+    public func salesStats(address : Types.AccountIdentifier) : (Time.Time, Nat64, Nat) {
+      if (Time.now() >= whitelistEnd) {
+        (saleStart, price, _tokensForSale.size());
+      } else {
+        if (isWhitelisted(address)) {
+          (saleStart, whitelistprice, _tokensForSale.size());        
+        } else {
+          (saleStart, price, _tokensForSale.size());        
+        };
+      };
+    };
+
+/*******************
+* INTERNAL METHODS *
+*******************/
 
     public func setWhitelist(whitelistAddresses: [Types.AccountIdentifier]) {
       _whitelist := Utils.bufferFromArray<Types.AccountIdentifier>(whitelistAddresses);

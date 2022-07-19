@@ -309,6 +309,34 @@ shared ({ caller = init_minter}) actor class Canister(cid: Principal) = myCanist
     }
   );
 
+  public shared(msg) func initMint() : async () {
+    _Sale.initMint(msg.caller)
+  };
+
+  public shared(msg) func reserve(amount : Nat64, quantity : Nat64, address : SaleTypes.AccountIdentifier, subaccount : SaleTypes.SubAccount) : async Result.Result<(SaleTypes.AccountIdentifier, Nat64), Text> {
+    _Sale.reserve(amount, quantity, address, subaccount)
+  };
+    
+  public shared(msg) func retreive(paymentaddress : SaleTypes.AccountIdentifier) : async Result.Result<(), Text> {
+    await _Sale.retreive(msg.caller, paymentaddress)
+  };
+
+  public query func salesSettlements() : async [(SaleTypes.AccountIdentifier, SaleTypes.Sale)] {
+    _Sale.salesSettlements();
+  };
+    
+  public query func failedSales() : async [(SaleTypes.AccountIdentifier, SaleTypes.SubAccount)] {
+    _Sale.failedSales();
+  };
+
+  public query(msg) func saleTransactions() : async [SaleTypes.SaleTransaction] {
+    _Sale.saleTransactions();
+  };
+
+  public query(msg) func salesStats(address : SaleTypes.AccountIdentifier) : async (Time.Time, Nat64, Nat) {
+    _Sale.salesStats(address);
+  };
+
  // Assets
   let _Assets = Assets.Factory(
     {
