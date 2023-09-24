@@ -1,3 +1,4 @@
+# This repository is archived. The current code lives [here](https://github.com/flowerpowerdao/eth-flower)
 ![homepagebanner_comp1](https://user-images.githubusercontent.com/32162112/158982003-4b747cfd-32ad-4582-8e24-395b60bc0668.jpg)
 
 # eth flower nft 🌼
